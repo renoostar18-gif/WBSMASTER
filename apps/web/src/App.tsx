@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { DEMO } from './api.js';
 import { I18nProvider } from './i18n.js';
 import { AuthPage } from './pages/Auth.js';
 import { ProjectsPage } from './pages/Projects.js';
@@ -19,12 +20,15 @@ function PublicOnly({ children }: { children: ReactNode }) {
   return me ? <Navigate to="/" replace /> : <>{children}</>;
 }
 
+// the demo runs inside a framed page whose address it cannot change, so it keeps routes in memory
+const Router = DEMO ? MemoryRouter : BrowserRouter;
+
 export function App() {
   return (
     <I18nProvider>
       <SessionProvider>
         <ToastProvider>
-          <BrowserRouter>
+          <Router>
             <Routes>
               <Route path="/signin" element={<PublicOnly><AuthPage mode="signin" /></PublicOnly>} />
               <Route path="/signup" element={<PublicOnly><AuthPage mode="signup" /></PublicOnly>} />
@@ -32,7 +36,7 @@ export function App() {
               <Route path="/p/:projectId" element={<Private><ProjectPage /></Private>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </BrowserRouter>
+          </Router>
         </ToastProvider>
       </SessionProvider>
     </I18nProvider>

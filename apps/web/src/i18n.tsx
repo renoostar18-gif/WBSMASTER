@@ -5,6 +5,7 @@ export type Locale = 'en' | 'ar';
 
 const en = {
   app: 'WBS Master',
+  demo: 'Demo · saved in this browser only', demoNote: 'This demo runs entirely in your browser. Nothing is sent to a server.', demoReset: 'Start over',
   signIn: 'Sign in', signUp: 'Create account', signOut: 'Sign out',
   email: 'Email', password: 'Password', yourName: 'Your name', organisation: 'Organisation name (optional)',
   noAccount: 'New to WBS Master?', haveAccount: 'Already have an account?',
@@ -58,6 +59,7 @@ const en = {
 
 const ar: typeof en = {
   app: 'WBS Master',
+  demo: 'نسخة تجريبية · تُحفظ في هذا المتصفح فقط', demoNote: 'تعمل هذه النسخة التجريبية بالكامل داخل متصفحك، ولا يُرسل شيء إلى أي خادم.', demoReset: 'البدء من جديد',
   signIn: 'تسجيل الدخول', signUp: 'إنشاء حساب', signOut: 'تسجيل الخروج',
   email: 'البريد الإلكتروني', password: 'كلمة المرور', yourName: 'اسمك', organisation: 'اسم المنشأة (اختياري)',
   noAccount: 'جديد على WBS Master؟', haveAccount: 'لديك حساب؟',

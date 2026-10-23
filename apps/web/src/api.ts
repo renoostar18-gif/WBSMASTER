@@ -5,7 +5,12 @@ export class ApiError extends Error {
   }
 }
 
+/** Demo build: the API runs inside the browser (see demo/server.ts). */
+export const DEMO = import.meta.env.MODE === 'demo';
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  // written out (not via DEMO) so the bundler removes the demo from normal builds
+  if (import.meta.env.MODE === 'demo') return (await import('./demo/server.js')).demoRequest<T>(method, url, body);
   let res: Response;
   try {
     res = await fetch(`/api${url}`, {
