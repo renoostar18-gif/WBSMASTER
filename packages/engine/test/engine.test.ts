@@ -178,6 +178,15 @@ describe('edit side effects', () => {
     const b = applyEdit(item('a', null), 'plannedFinish', '2026-10-30', T);
     expect([b.forecastStart, b.forecastFinish]).toEqual([null, '2026-10-30']);
   });
+  it('fills the forecast from the plan when start and finish are typed one after the other', () => {
+    const a = applyEdit(applyEdit(item('a', null), 'plannedStart', '2026-10-18', T), 'plannedFinish', '2026-10-29', T);
+    expect([a.forecastStart, a.forecastFinish]).toEqual(['2026-10-18', '2026-10-29']);
+    const b = applyEdit(applyEdit(item('b', null), 'plannedFinish', '2026-10-29', T), 'plannedStart', '2026-10-18', T);
+    expect([b.forecastStart, b.forecastFinish]).toEqual(['2026-10-18', '2026-10-29']);
+    // a forecast that differs from the plan is left alone
+    const c = applyEdit(item('c', null, { plannedStart: '2026-10-18', forecastStart: '2026-10-20' }), 'plannedFinish', '2026-10-29', T);
+    expect(c.forecastFinish).toBeNull();
+  });
   it('keeps finish ≥ start by moving the other date of the pair', () => {
     const a = item('a', null, { forecastStart: '2026-10-20', forecastFinish: '2026-10-25' });
     expect(applyEdit(a, 'forecastStart', '2026-10-28', T).forecastFinish).toBe('2026-10-28');

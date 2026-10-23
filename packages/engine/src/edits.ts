@@ -38,9 +38,16 @@ export function applyEdit(item: WbsItem, field: EditableField, value: string | n
   // the first plan becomes the baseline, and a baseline fills an empty forecast
   if (field === 'forecastStart' && v && !n.plannedStart) n.plannedStart = n.forecastStart;
   if (field === 'forecastFinish' && v && !n.plannedFinish) n.plannedFinish = n.forecastFinish;
-  if ((field === 'plannedStart' || field === 'plannedFinish') && v && !n.forecastStart && !n.forecastFinish) {
-    n.forecastStart = n.plannedStart;
-    n.forecastFinish = n.plannedFinish;
+  if ((field === 'plannedStart' || field === 'plannedFinish') && v) {
+    if (!n.forecastStart && !n.forecastFinish) {
+      n.forecastStart = n.plannedStart;
+      n.forecastFinish = n.plannedFinish;
+    } else if (field === 'plannedFinish' && !n.forecastFinish && n.forecastStart === n.plannedStart) {
+      // the forecast is still mirroring the plan: fill its missing finish too (the prototype left a one-day forecast)
+      n.forecastFinish = n.plannedFinish;
+    } else if (field === 'plannedStart' && !n.forecastStart && n.forecastFinish === n.plannedFinish) {
+      n.forecastStart = n.plannedStart;
+    }
   }
   if (field === 'actualFinish' && v) {
     n.progress = 100;

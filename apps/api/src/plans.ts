@@ -1,0 +1,23 @@
+/** Plan limits (spec 3.4). Infinity = no limit. */
+export type Plan = 'free' | 'team' | 'business';
+
+export interface PlanLimits {
+  members: number;
+  activeProjects: number;
+  itemsPerProject: number;
+  baselinesPerProject: number;
+  portfolio: boolean;
+  guests: boolean;
+  multipleCalendars: boolean;
+  /** USD per user per month, monthly billing. Annual billing is 20% less. */
+  priceMonthlyUsd: number;
+}
+
+export const PLANS: Record<Plan, PlanLimits> = {
+  free: { members: 3, activeProjects: 3, itemsPerProject: 500, baselinesPerProject: 1, portfolio: false, guests: false, multipleCalendars: false, priceMonthlyUsd: 0 },
+  team: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: false, priceMonthlyUsd: 12 },
+  business: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: true, priceMonthlyUsd: 24 },
+};
+
+export const ANNUAL_DISCOUNT = 0.2;
+export const SAR_PER_USD = 3.75;
