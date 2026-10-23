@@ -11,19 +11,41 @@ The product specification (requirements, business rules, data dictionary, Excel 
 | Path | What it is |
 | --- | --- |
 | `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing. Pure TypeScript with no dependencies; runs in the browser and on the server. |
+| `apps/api` | HTTP API (Fastify + PostgreSQL): sign-up and sign-in, organisations and roles, plan limits, calendars, projects, WBS edits through the engine, baselines, summary text, activity history. |
 
-Coming next: `apps/api` (Node.js + PostgreSQL), `apps/web` (React), `infra` (Terraform for Google Cloud Dammam).
+Coming next: `apps/web` (React), `infra` (Terraform for Google Cloud Dammam).
 
 ## Develop
 
-Requires Node.js 22 and pnpm 10.
+Requires Node.js 22, pnpm 10 and PostgreSQL 16.
 
 ```sh
 pnpm install
-pnpm test        # all tests
+cp apps/api/.env.example apps/api/.env   # then point the URLs at your PostgreSQL
+createdb wbs_dev && createdb wbs_test
+pnpm test        # all tests (the API tests wipe TEST_DATABASE_URL)
 pnpm typecheck
 pnpm build
+pnpm --filter @wbs-master/api dev        # API on http://localhost:3000, migrates on start
 ```
+
+## API overview
+
+All routes are under `/api` and use a session cookie set by sign-up or sign-in.
+Errors return `{ "error": "<code>" }` with a stable code the web app translates.
+
+| Area | Routes |
+| --- | --- |
+| Account | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PATCH /me` |
+| Organisations | `POST /orgs`, `PATCH /orgs/:orgId`, `GET/POST /orgs/:orgId/members`, `PATCH/DELETE /orgs/:orgId/members/:userId` |
+| Calendars | `GET/POST /orgs/:orgId/calendars`, `PATCH /orgs/:orgId/calendars/:id`, `POST /orgs/:orgId/calendars/:id/exceptions` (or `{ "saudiYear": 2027 }`), `DELETE .../exceptions/:date` |
+| Projects | `GET/POST /orgs/:orgId/projects`, `GET/PATCH/DELETE /projects/:id` |
+| Editing | `POST /projects/:id/ops` with `{ "ops": [...] }`: `add`, `set`, `move`, `delete`, `link`, `unlink`, `setLag`, `setDeps`. A batch is all-or-nothing and ends with auto-schedule. |
+| Sharing | `GET /projects/:id/members`, `PUT/DELETE /projects/:id/members/:userId` |
+| Baselines | `POST /projects/:id/baselines`, `PATCH/DELETE /projects/:id/baselines/:bid`, `POST .../:bid/restore` |
+| Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` |
+
+`GET /projects/:id` returns the stored project plus `computed`: codes, health, variance, roll-ups and the critical path from the engine.
 
 ## How the engine is tested
 
@@ -42,5 +64,7 @@ pnpm build
 3. Auto-schedule never moves a finish before its start. The prototype could, when an item had a
    forecast start but no forecast finish and an earlier planned finish.
 4. Importing the status "Not started" gives Not started. The prototype read it as In progress.
+5. Typing a planned start and then a planned finish fills the whole forecast. The prototype left a
+   one-day forecast.
 
 All rights reserved.

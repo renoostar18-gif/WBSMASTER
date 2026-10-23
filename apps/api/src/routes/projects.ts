@@ -1,0 +1,320 @@
+import { randomUUID } from 'node:crypto';
+import {
+  WorkCalendar, autoSchedule, computeProject, restoreBaseline, saveBaseline, toDay, todayDay,
+} from '@wbs-master/engine';
+import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
+import { type AppDeps, parse, requireUser } from '../app.js';
+import { type Tx, tx } from '../db.js';
+import { badRequest, forbidden, notFound } from '../errors.js';
+import { applyOps, opsBody } from '../ops.js';
+import { type ProjectRole, orgAccess, projectAccess } from '../permissions.js';
+import { PLANS } from '../plans.js';
+import { saveItems } from '../save.js';
+import { loadProject, serializeComputed } from '../store.js';
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => toDay(s) != null, 'invalid date');
+const projectRole = z.enum(['admin', 'editor', 'commenter', 'viewer']);
+type P = { Params: { projectId: string } };
+
+/**
+ * After a calendar changes, re-run auto-schedule on every project that uses
+ * it (spec 4.10). Returns how many items moved.
+ */
+export async function recalcProjectsUsingCalendar(c: Tx, orgId: string, actorId: string): Promise<number> {
+  const ps = await c.query<{ id: string }>('select id from projects where org_id = $1 and archived_at is null and auto_schedule', [orgId]);
+  let moved = 0;
+  for (const { id } of ps.rows) {
+    const loaded = await loadProject(c, id, true);
+    const s = autoSchedule(loaded.project, new WorkCalendar(loaded.calendar));
+    if (!s.moved.length) continue;
+    await saveItems(c, loaded, { ...loaded.project, items: s.items }, actorId, s.moved);
+    moved += s.moved.length;
+  }
+  return moved;
+}
+
+export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
+  const today = () => todayDay(deps.today?.() ?? new Date());
+
+  /** Full project for the web app: stored data, calendar and the engine's calculations. */
+  async function projectPayload(projectId: string, role: ProjectRole) {
+    const loaded = await loadProject(deps.db, projectId);
+    const computed = computeProject(loaded.project, { calendar: new WorkCalendar(loaded.calendar), today: today() });
+    const summary = await deps.db.query(
+      'select narrative, achievements, next_steps as "nextSteps", risks, decisions from project_summaries where project_id = $1', [projectId]);
+    return {
+      project: {
+        id: loaded.row.id, orgId: loaded.row.org_id, name: loaded.row.name, version: loaded.row.version,
+        calendarId: loaded.row.calendar_id, locale: loaded.row.locale, archived: !!loaded.row.archived_at,
+        settings: loaded.project.settings,
+      },
+      role,
+      items: loaded.project.items,
+      baselines: loaded.project.baselines,
+      calendar: loaded.calendar,
+      summary: summary.rows[0] ?? { narrative: '', achievements: '', nextSteps: '', risks: '', decisions: '' },
+      computed: serializeComputed(computed),
+    };
+  }
+
+  app.get<{ Params: { orgId: string }; Querystring: { archived?: string } }>('/orgs/:orgId/projects', async req => {
+    const user = requireUser(req);
+    const acc = await orgAccess(deps.db, user.id, req.params.orgId);
+    const all = acc.role === 'owner' || acc.role === 'admin';
+    const r = await deps.db.query(
+      `select p.id, p.name, p.updated_at as "updatedAt", p.archived_at is not null as archived,
+              (select count(*)::int from wbs_items i where i.project_id = p.id) as "itemCount",
+              case when $3 then 'admin' else pm.role end as role
+         from projects p
+         left join project_members pm on pm.project_id = p.id and pm.user_id = $2
+        where p.org_id = $1 and ($3 or pm.user_id is not null)
+          and (p.archived_at is null) = ($4::text is null)
+        order by p.updated_at desc`,
+      [req.params.orgId, user.id, all, req.query.archived ?? null]);
+    return { projects: r.rows };
+  });
+
+  app.post<{ Params: { orgId: string } }>('/orgs/:orgId/projects', async (req, reply) => {
+    const user = requireUser(req);
+    const acc = await orgAccess(deps.db, user.id, req.params.orgId, 'member');
+    const body = parse(z.object({ name: z.string().trim().min(1).max(200), locale: z.enum(['en', 'ar']).optional() }), req.body);
+    const id = await tx(deps.db, async c => {
+      await c.query('select id from organisations where id = $1 for update', [req.params.orgId]);
+      const n = await c.query<{ n: number }>('select count(*)::int as n from projects where org_id = $1 and archived_at is null', [req.params.orgId]);
+      if (n.rows[0]!.n >= PLANS[acc.plan].activeProjects) throw forbidden('plan_project_limit');
+      const p = await c.query<{ id: string }>(
+        'insert into projects (org_id, name, locale, updated_by) values ($1, $2, $3, $4) returning id',
+        [req.params.orgId, body.name, body.locale ?? 'en', user.id]);
+      const pid = p.rows[0]!.id;
+      await c.query("insert into project_members (project_id, user_id, role) values ($1, $2, 'admin')", [pid, user.id]);
+      await c.query("insert into activity_log (project_id, actor_id, action, new_value) values ($1, $2, 'project.create', $3)",
+        [pid, user.id, JSON.stringify(body.name)]);
+      return pid;
+    });
+    return reply.status(201).send({ id });
+  });
+
+  app.get<P>('/projects/:projectId', async req => {
+    const user = requireUser(req);
+    const acc = await projectAccess(deps.db, user.id, req.params.projectId);
+    return projectPayload(req.params.projectId, acc.role);
+  });
+
+  app.patch<P>('/projects/:projectId', async req => {
+    const user = requireUser(req);
+    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const body = parse(z.object({
+      name: z.string().trim().min(1).max(200),
+      statusDate: isoDate.nullable(),
+      redThresholdDays: z.number().int().min(1).max(365),
+      autoSchedule: z.boolean(),
+      activeBaselineId: z.string().uuid().nullable(),
+      calendarId: z.string().uuid().nullable(),
+      locale: z.enum(['en', 'ar']),
+      archived: z.boolean(),
+    }).partial(), req.body);
+    const moved = await tx(deps.db, async c => {
+      if (body.calendarId) {
+        const ok = await c.query('select 1 from calendars where id = $1 and org_id = $2', [body.calendarId, acc.orgId]);
+        if (!ok.rowCount) throw badRequest('calendar_not_found');
+      }
+      if (body.activeBaselineId) {
+        const ok = await c.query('select 1 from baselines where id = $1 and project_id = $2', [body.activeBaselineId, req.params.projectId]);
+        if (!ok.rowCount) throw badRequest('baseline_not_found');
+      }
+      if (body.archived === false) {
+        const n = await c.query<{ n: number }>('select count(*)::int as n from projects where org_id = $1 and archived_at is null', [acc.orgId]);
+        if (n.rows[0]!.n >= PLANS[acc.plan].activeProjects) throw forbidden('plan_project_limit');
+      }
+      const cols: [string, unknown][] = [];
+      if (body.name !== undefined) cols.push(['name', body.name]);
+      if (body.statusDate !== undefined) cols.push(['status_date', body.statusDate]);
+      if (body.redThresholdDays !== undefined) cols.push(['red_threshold_days', body.redThresholdDays]);
+      if (body.autoSchedule !== undefined) cols.push(['auto_schedule', body.autoSchedule]);
+      if (body.activeBaselineId !== undefined) cols.push(['active_baseline_id', body.activeBaselineId]);
+      if (body.calendarId !== undefined) cols.push(['calendar_id', body.calendarId]);
+      if (body.locale !== undefined) cols.push(['locale', body.locale]);
+      if (body.archived !== undefined) cols.push(['archived_at', body.archived ? new Date() : null]);
+      if (!cols.length) return 0;
+      await c.query(
+        `update projects set ${cols.map(([k], i) => `${k} = $${i + 2}`).join(', ')}, version = version + 1, updated_at = now(), updated_by = $${cols.length + 2}
+          where id = $1`,
+        [req.params.projectId, ...cols.map(([, v]) => v), user.id]);
+      await c.query("insert into activity_log (project_id, actor_id, action, new_value) values ($1, $2, 'project.settings', $3)",
+        [req.params.projectId, user.id, JSON.stringify(body)]);
+      // a new calendar or switching auto-schedule on can move linked work
+      if (body.calendarId !== undefined || body.autoSchedule === true) {
+        const loaded = await loadProject(c, req.params.projectId, true);
+        const s = autoSchedule(loaded.project, new WorkCalendar(loaded.calendar));
+        if (s.moved.length) await saveItems(c, loaded, { ...loaded.project, items: s.items }, user.id, s.moved);
+        return s.moved.length;
+      }
+      return 0;
+    });
+    return { ok: true, itemsMoved: moved };
+  });
+
+  app.delete<P>('/projects/:projectId', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    await deps.db.query('delete from projects where id = $1', [req.params.projectId]);
+    return { ok: true };
+  });
+
+  /** Apply a batch of edits atomically through the engine; returns the new version and calculations. */
+  app.post<P>('/projects/:projectId/ops', async req => {
+    const user = requireUser(req);
+    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'editor');
+    const body = parse(opsBody, req.body);
+    const result = await tx(deps.db, async c => {
+      const loaded = await loadProject(c, req.params.projectId, true);
+      if (loaded.row.archived_at) throw forbidden('project_archived');
+      const cal = new WorkCalendar(loaded.calendar);
+      const statusDate = toDay(loaded.project.settings.statusDate) ?? today();
+      const r = applyOps(loaded.project, body.ops, { statusDate, calendar: cal, maxItems: PLANS[acc.plan].itemsPerProject });
+      const saved = await saveItems(c, loaded, r.project, user.id, r.scheduled);
+      return { r, saved, cal };
+    });
+    const computed = computeProject(result.r.project, { calendar: result.cal, today: today() });
+    return {
+      version: result.saved.version,
+      created: result.r.created,
+      scheduled: result.r.scheduled,
+      ignoredDeps: result.r.ignoredDeps,
+      items: result.r.project.items,
+      computed: serializeComputed(computed),
+    };
+  });
+
+  // ---- members ----
+  app.get<P>('/projects/:projectId/members', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId);
+    const r = await deps.db.query(
+      `select u.id, u.email, u.name, pm.role from project_members pm join users u on u.id = pm.user_id
+        where pm.project_id = $1 order by u.name`, [req.params.projectId]);
+    return { members: r.rows };
+  });
+
+  app.put<{ Params: { projectId: string; userId: string } }>('/projects/:projectId/members/:userId', async req => {
+    const user = requireUser(req);
+    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const body = parse(z.object({ role: projectRole }), req.body);
+    await tx(deps.db, async c => {
+      const m = await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [acc.orgId, req.params.userId]);
+      if (!m.rowCount) throw badRequest('not_org_member');
+      await c.query(
+        `insert into project_members (project_id, user_id, role) values ($1, $2, $3)
+         on conflict (project_id, user_id) do update set role = excluded.role`,
+        [req.params.projectId, req.params.userId, body.role]);
+    });
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { projectId: string; userId: string } }>('/projects/:projectId/members/:userId', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId, user.id === req.params.userId ? 'viewer' : 'admin');
+    await tx(deps.db, async c => {
+      const r = await c.query('delete from project_members where project_id = $1 and user_id = $2', [req.params.projectId, req.params.userId]);
+      if (!r.rowCount) throw notFound('member_not_found');
+    });
+    return { ok: true };
+  });
+
+  // ---- baselines (project admins only, spec 4.8) ----
+  app.post<P>('/projects/:projectId/baselines', async (req, reply) => {
+    const user = requireUser(req);
+    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const body = parse(z.object({ name: z.string().trim().max(120).optional(), reason: z.string().trim().max(1000).optional() }), req.body ?? {});
+    const out = await tx(deps.db, async c => {
+      const loaded = await loadProject(c, req.params.projectId, true);
+      // the automatic "Original baseline" does not count towards the plan limit
+      const limit = PLANS[acc.plan].baselinesPerProject;
+      const counted = (n: number) => Math.max(0, n - 1);
+      if (counted(loaded.project.baselines.length) >= limit) throw forbidden('plan_baseline_limit');
+      const next = saveBaseline(loaded.project, {
+        name: body.name, reason: body.reason, today: today(),
+        firstPlannedOn: toDay(loaded.row.created_at.toISOString().slice(0, 10)) ?? undefined,
+      });
+      if (typeof next === 'string') throw badRequest(next);
+      if (counted(next.baselines.length) > limit) throw forbidden('plan_baseline_limit');
+      await saveItems(c, loaded, next, user.id);
+      const fresh = next.baselines.slice(loaded.project.baselines.length);
+      for (const [k, bl] of fresh.entries()) {
+        const id = randomUUID();
+        await c.query(
+          'insert into baselines (id, project_id, name, set_on, reason, position, created_by) values ($1, $2, $3, $4, $5, $6, $7)',
+          [id, req.params.projectId, bl.name, bl.setOn, bl.reason, loaded.project.baselines.length + k, user.id]);
+        await c.query(
+          `insert into baseline_items (baseline_id, item_id, planned_start, planned_finish)
+           select $1, x.key::uuid, (x.value->>0)::date, (x.value->>1)::date from jsonb_each($2::jsonb) as x`,
+          [id, JSON.stringify(bl.items)]);
+        await c.query("insert into activity_log (project_id, actor_id, action, new_value) values ($1, $2, 'baseline.save', $3)",
+          [req.params.projectId, user.id, JSON.stringify({ id, name: bl.name, reason: bl.reason })]);
+      }
+      await c.query('update projects set active_baseline_id = null where id = $1', [req.params.projectId]);
+      return fresh.map(b => b.name);
+    });
+    return reply.status(201).send({ saved: out });
+  });
+
+  app.patch<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const body = parse(z.object({ name: z.string().trim().min(1).max(120) }), req.body);
+    const r = await deps.db.query('update baselines set name = $3 where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId, body.name]);
+    if (!r.rowCount) throw notFound('baseline_not_found');
+    return { ok: true };
+  });
+
+  app.post<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId/restore', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    await tx(deps.db, async c => {
+      const loaded = await loadProject(c, req.params.projectId, true);
+      if (!loaded.project.baselines.some(b => b.id === req.params.baselineId)) throw notFound('baseline_not_found');
+      await saveItems(c, loaded, restoreBaseline(loaded.project, req.params.baselineId), user.id);
+      await c.query('update projects set active_baseline_id = null where id = $1', [req.params.projectId]);
+    });
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const r = await deps.db.query('delete from baselines where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId]);
+    if (!r.rowCount) throw notFound('baseline_not_found');
+    return { ok: true };
+  });
+
+  // ---- summary text and activity ----
+  app.put<P>('/projects/:projectId/summary', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId, 'editor');
+    const t = z.string().max(10_000);
+    const body = parse(z.object({ narrative: t, achievements: t, nextSteps: t, risks: t, decisions: t }).partial(), req.body);
+    await deps.db.query(
+      `insert into project_summaries (project_id, narrative, achievements, next_steps, risks, decisions)
+       values ($1, coalesce($2, ''), coalesce($3, ''), coalesce($4, ''), coalesce($5, ''), coalesce($6, ''))
+       on conflict (project_id) do update set
+         narrative = coalesce($2, project_summaries.narrative), achievements = coalesce($3, project_summaries.achievements),
+         next_steps = coalesce($4, project_summaries.next_steps), risks = coalesce($5, project_summaries.risks),
+         decisions = coalesce($6, project_summaries.decisions), updated_at = now()`,
+      [req.params.projectId, body.narrative ?? null, body.achievements ?? null, body.nextSteps ?? null, body.risks ?? null, body.decisions ?? null]);
+    return { ok: true };
+  });
+
+  app.get<P & { Querystring: { before?: string; itemId?: string } }>('/projects/:projectId/activity', async req => {
+    const user = requireUser(req);
+    await projectAccess(deps.db, user.id, req.params.projectId);
+    const r = await deps.db.query(
+      `select a.id, a.item_id as "itemId", a.action, a.field, a.old_value as "oldValue", a.new_value as "newValue", a.at,
+              u.id as "actorId", u.name as "actorName"
+         from activity_log a left join users u on u.id = a.actor_id
+        where a.project_id = $1 and ($2::bigint is null or a.id < $2) and ($3::uuid is null or a.item_id = $3)
+        order by a.id desc limit 100`,
+      [req.params.projectId, req.query.before ?? null, req.query.itemId ?? null]);
+    return { activity: r.rows };
+  });
+};
