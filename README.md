@@ -13,7 +13,9 @@ The product specification (requirements, business rules, data dictionary, Excel 
 | `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing. Pure TypeScript with no dependencies; runs in the browser and on the server. |
 | `apps/api` | HTTP API (Fastify + PostgreSQL): sign-up and sign-in, organisations and roles, plan limits, calendars, projects, WBS edits through the engine, baselines, summary text, activity history. |
 
-Coming next: `apps/web` (React), `infra` (Terraform for Google Cloud Dammam).
+| `apps/web` | Web app (React + Vite): sign-in, projects, the Table view with inline editing, inspector, keyboard shortcuts, undo/redo, project settings. English and Arabic (right-to-left), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
+
+Coming next: Chart and Gantt views, real-time co-editing, then `infra` (Terraform for Google Cloud Dammam).
 
 ## Develop
 
@@ -27,7 +29,14 @@ pnpm test        # all tests (the API tests wipe TEST_DATABASE_URL)
 pnpm typecheck
 pnpm build
 pnpm --filter @wbs-master/api dev        # API on http://localhost:3000, migrates on start
+pnpm --filter @wbs-master/web dev        # web app on http://localhost:5173 (proxies /api)
 ```
+
+Browser smoke test (API and web app running): `node apps/web/e2e/smoke.mjs`. Set `CHROMIUM_PATH`
+to use an installed Chromium, and `WEB_URL` to test another address.
+
+Production: `pnpm build`, then run `node apps/api/dist/server.js` with `WEB_DIST=apps/web/dist`;
+the API serves the web app and migrates the database on start.
 
 ## API overview
 
@@ -66,5 +75,9 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 4. Importing the status "Not started" gives Not started. The prototype read it as In progress.
 5. Typing a planned start and then a planned finish fills the whole forecast. The prototype left a
    one-day forecast.
+
+Undo and redo work by computing the edits between two versions (`diffToOps`), so an undo is saved
+like any other edit. A `put` edit restores stored values exactly, including dates a parent kept
+from before it had sub-items.
 
 All rights reserved.

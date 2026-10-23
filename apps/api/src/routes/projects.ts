@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { type AppDeps, parse, requireUser } from '../app.js';
 import { type Tx, tx } from '../db.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
-import { applyOps, opsBody } from '../ops.js';
+import { type Op, applyOps, opsBody } from '../ops.js';
 import { type ProjectRole, orgAccess, projectAccess } from '../permissions.js';
 import { PLANS } from '../plans.js';
 import { saveItems } from '../save.js';
@@ -172,7 +172,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       if (loaded.row.archived_at) throw forbidden('project_archived');
       const cal = new WorkCalendar(loaded.calendar);
       const statusDate = toDay(loaded.project.settings.statusDate) ?? today();
-      const r = applyOps(loaded.project, body.ops, { statusDate, calendar: cal, maxItems: PLANS[acc.plan].itemsPerProject });
+      const r = applyOps(loaded.project, body.ops as Op[], { statusDate, calendar: cal, maxItems: PLANS[acc.plan].itemsPerProject });
       const saved = await saveItems(c, loaded, r.project, user.id, r.scheduled);
       return { r, saved, cal };
     });
