@@ -16,6 +16,13 @@ export function Var({ v }: { v: number | null }) {
   return <span className={`var ${v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero'}`} title={t('varianceLong')}>{v > 0 ? '+' : ''}{v}{t('daysShort')}</span>;
 }
 
+/** Marks an item another person has selected right now. */
+export function Who({ names }: { names?: string[] }) {
+  const { t } = useI18n();
+  if (!names?.length) return null;
+  return <span className="who" title={t('selectedBy', { names: names.join(', ') })}>{names.map(n => n.trim()[0]?.toUpperCase()).join('')}</span>;
+}
+
 const ToastCtx = createContext<(msg: string) => void>(() => {});
 export const useToast = () => useContext(ToastCtx);
 

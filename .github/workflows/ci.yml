@@ -63,3 +63,6 @@ jobs:
       - name: Browser smoke test
         working-directory: apps/web
         run: WEB_URL=http://localhost:3000 node e2e/smoke.mjs
+      - name: Two-person live editing test
+        working-directory: apps/web
+        run: WEB_URL=http://localhost:3000 node e2e/collab.mjs

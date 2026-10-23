@@ -103,12 +103,63 @@ await page.reload();
 await page.locator('td.code').first().waitFor();
 check(await row('Mechanical design').locator('input[type=date]').nth(2).inputValue() === '2026-10-26', 'after reload the server has the same schedule');
 
+// Gantt: drag a bar one week later, draw a link with the dot, check the arrows
+await page.getByRole('button', { name: 'Gantt' }).click();
+await page.getByRole('button', { name: 'Day' }).click();
+const gRow = n => page.locator('.g-row', { has: page.locator('.n', { hasText: new RegExp(`^${n}$`) }) });
+const bar = gRow('Mechanical design').locator('.bar');
+await bar.waitFor();
+const bb = await bar.boundingBox();
+await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+await page.mouse.down();
+await page.mouse.move(bb.x + bb.width / 2 + 3 * 30, bb.y + bb.height / 2, { steps: 6 }); // 3 days at 30 px a day
+await page.mouse.up();
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Table' }).click();
+check(await row('Mechanical design').locator('input[type=date]').nth(2).inputValue() === '2026-10-29', 'dragging a Gantt bar 3 days moves its forecast start (26 → 29 Oct)');
+await page.getByRole('button', { name: 'Gantt' }).click();
+// give the certificate dates by clicking its empty timeline, then link it after mechanical design
+const certTrack = gRow('Type test certificate').locator('.g-track');
+const tb = await certTrack.boundingBox();
+const todayLine = await page.locator('.today').boundingBox();
+await page.mouse.click(todayLine.x + 5 * 30, tb.y + tb.height / 2);
+await page.waitForTimeout(300);
+check(await gRow('Type test certificate').locator('.bar').count() === 1, 'clicking an undated row\'s timeline gives it dates');
+const mechBar = await gRow('Mechanical design').locator('.bar').boundingBox();
+await page.mouse.move(mechBar.x + mechBar.width / 2, mechBar.y + 4);
+const dot = gRow('Mechanical design').locator('.lk');
+const db = await dot.boundingBox();
+await page.mouse.move(db.x + db.width / 2, db.y + db.height / 2);
+await page.mouse.down();
+const cb = await gRow('Type test certificate').locator('.g-left').boundingBox();
+await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(400);
+check(await page.locator('.g-links path').count() >= 2, 'dragging the link dot onto another row draws a new arrow');
+await shot('3-gantt');
+
+// Chart: drag the certificate box onto Design to move it under Design
+await page.getByRole('button', { name: 'Chart' }).click();
+await page.locator('.box[data-box]').first().waitFor();
+await page.locator('.box', { hasText: 'Type test certificate' }).dragTo(page.locator('.box', { hasText: 'Design' }).first());
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Table' }).click();
+const codes3 = (await page.locator('td.code').allInnerTexts()).map(c => c.trim().replace(/\s*CP$/, ''));
+check(codes3.join(',') === '1,1.1,1.2,1.3', `dragging a chart box onto another moves it under it (got ${codes3.join(',')})`);
+await page.getByRole('button', { name: 'Chart' }).click();
+await shot('4-chart');
+await page.getByRole('button', { name: 'Table' }).click();
+
 // Arabic, right to left
 await page.getByRole('button', { name: 'العربية' }).click();
 check(await page.evaluate(() => document.documentElement.dir) === 'rtl', 'Arabic switches the page to right-to-left');
 await page.getByText('المستويات').waitFor();
 await row('Electrical design').locator('td.code').click();
 await shot('2-arabic');
+await page.getByRole('button', { name: 'جانت' }).click();
+await page.locator('.g-row').first().waitFor();
+await shot('5-gantt-arabic');
+await page.getByRole('button', { name: 'جدول' }).click();
 await page.getByRole('button', { name: 'English' }).click();
 
 check(errors.length === 0, `no browser errors${errors.length ? ': ' + errors.join(' | ') : ''}`);

@@ -1,16 +1,19 @@
 import { existsSync } from 'node:fs';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
+import websocket from '@fastify/websocket';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
 import { type SessionUser, userForToken } from './auth.js';
 import type { Config } from './config.js';
 import type { Db } from './db.js';
 import { ApiError } from './errors.js';
+import { LiveHub } from './live.js';
 import { OpError } from './ops.js';
 import { authRoutes } from './routes/auth.js';
 import { calendarRoutes } from './routes/calendars.js';
 import { orgRoutes } from './routes/orgs.js';
+import { liveRoutes } from './routes/live.js';
 import { projectRoutes } from './routes/projects.js';
 
 export const SESSION_COOKIE = 'wbs_session';
@@ -26,11 +29,15 @@ export interface AppDeps {
   config: Config;
   /** Fixed "today" for tests; real clock otherwise. */
   today?: () => Date;
+  /** Live updates hub; created by buildApp when not given. */
+  live?: LiveHub;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
+  deps.live ??= new LiveHub();
   const app = Fastify({ logger: false, bodyLimit: 2 * 1024 * 1024 });
   app.register(cookie);
+  app.register(websocket);
   app.decorateRequest('user', null);
 
   app.addHook('preHandler', async req => {
@@ -55,6 +62,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(orgRoutes(deps), { prefix: '/api' });
   app.register(calendarRoutes(deps), { prefix: '/api' });
   app.register(projectRoutes(deps), { prefix: '/api' });
+  app.register(liveRoutes(deps), { prefix: '/api' });
 
   // production: serve the web app, and its index.html for any page route (client-side routing)
   const dist = deps.config.webDist;

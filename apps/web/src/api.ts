@@ -5,6 +5,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Identifies this browser tab, so live updates can skip the tab's own saves. */
+export const CLIENT_ID = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random());
+
 /** Demo build: the API runs inside the browser (see demo/server.ts). */
 export const DEMO = import.meta.env.MODE === 'demo';
 
@@ -16,7 +19,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     res = await fetch(`/api${url}`, {
       method,
       credentials: 'same-origin',
-      headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+      headers: { 'x-wbs-client': CLIENT_ID, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {

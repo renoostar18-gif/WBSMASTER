@@ -37,6 +37,20 @@ export async function recalcProjectsUsingCalendar(c: Tx, orgId: string, actorId:
 export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   const today = () => todayDay(deps.today?.() ?? new Date());
 
+  /** Tell open pages a new version was saved (bumping the version when the change did not). */
+  /** The browser tab that made the change (header x-wbs-client), so that tab can skip its own announcement. */
+  const clientOf = (req: { headers: Record<string, unknown> }) => {
+    const v = req.headers['x-wbs-client'];
+    return typeof v === 'string' ? v.slice(0, 64) : null;
+  };
+
+  async function announce(projectId: string, user: { id: string; name: string }, items: string[] = [], bump = false, clientId: string | null = null) {
+    const r = bump
+      ? await deps.db.query<{ version: number }>('update projects set version = version + 1, updated_at = now() where id = $1 returning version', [projectId])
+      : await deps.db.query<{ version: number }>('select version from projects where id = $1', [projectId]);
+    if (r.rows[0]) deps.live?.changed(projectId, r.rows[0].version, user, items, clientId);
+  }
+
   /** Full project for the web app: stored data, calendar and the engine's calculations. */
   async function projectPayload(projectId: string, role: ProjectRole) {
     const loaded = await loadProject(deps.db, projectId);
@@ -152,6 +166,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       }
       return 0;
     });
+    await announce(req.params.projectId, user, [], false, clientOf(req));
     return { ok: true, itemsMoved: moved };
   });
 
@@ -176,6 +191,8 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       const saved = await saveItems(c, loaded, r.project, user.id, r.scheduled);
       return { r, saved, cal };
     });
+    deps.live?.changed(req.params.projectId, result.saved.version, user,
+      [...result.saved.added, ...result.saved.updated, ...result.saved.removed], clientOf(req));
     const computed = computeProject(result.r.project, { calendar: result.cal, today: today() });
     return {
       version: result.saved.version,
@@ -256,6 +273,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       await c.query('update projects set active_baseline_id = null where id = $1', [req.params.projectId]);
       return fresh.map(b => b.name);
     });
+    await announce(req.params.projectId, user, [], false, clientOf(req));
     return reply.status(201).send({ saved: out });
   });
 
@@ -265,6 +283,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     const body = parse(z.object({ name: z.string().trim().min(1).max(120) }), req.body);
     const r = await deps.db.query('update baselines set name = $3 where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId, body.name]);
     if (!r.rowCount) throw notFound('baseline_not_found');
+    await announce(req.params.projectId, user, [], true, clientOf(req));
     return { ok: true };
   });
 
@@ -277,6 +296,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       await saveItems(c, loaded, restoreBaseline(loaded.project, req.params.baselineId), user.id);
       await c.query('update projects set active_baseline_id = null where id = $1', [req.params.projectId]);
     });
+    await announce(req.params.projectId, user, [], false, clientOf(req));
     return { ok: true };
   });
 
@@ -285,6 +305,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
     const r = await deps.db.query('delete from baselines where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId]);
     if (!r.rowCount) throw notFound('baseline_not_found');
+    await announce(req.params.projectId, user, [], true, clientOf(req));
     return { ok: true };
   });
 

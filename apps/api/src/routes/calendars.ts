@@ -15,6 +15,13 @@ const exception = z.object({
 });
 
 export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
+  /** A calendar edit changes shading and possibly dates in every project of the organisation: tell open pages. */
+  async function announceOrg(orgId: string, user: { id: string; name: string }) {
+    const r = await deps.db.query<{ id: string; version: number }>(
+      'update projects set version = version + 1 where org_id = $1 and archived_at is null returning id, version', [orgId]);
+    for (const p of r.rows) deps.live?.changed(p.id, p.version, user);
+  }
+
   app.get<{ Params: { orgId: string } }>('/orgs/:orgId/calendars', async req => {
     const user = requireUser(req);
     await orgAccess(deps.db, user.id, req.params.orgId);
@@ -52,6 +59,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
         [req.params.calendarId, body.name ?? null, body.weekDays ?? null, body.isDefault ?? null]);
       return body.weekDays || body.isDefault ? recalcProjectsUsingCalendar(c, req.params.orgId, user.id) : 0;
     });
+    if (body.weekDays || body.isDefault) await announceOrg(req.params.orgId, user);
     return { ok: true, itemsMoved: moved };
   });
 
@@ -77,6 +85,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
         [req.params.calendarId, JSON.stringify(rows)]);
       return recalcProjectsUsingCalendar(c, req.params.orgId, user.id);
     });
+    await announceOrg(req.params.orgId, user);
     return { ok: true, added: rows.length, itemsMoved: moved };
   });
 
@@ -91,6 +100,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
       if (!r.rowCount) throw notFound('exception_not_found');
       return recalcProjectsUsingCalendar(c, req.params.orgId, user.id);
     });
+    await announceOrg(req.params.orgId, user);
     return { ok: true, itemsMoved: moved };
   });
 };

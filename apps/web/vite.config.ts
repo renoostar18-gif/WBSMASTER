@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => ({
   resolve: { conditions: ['development'] },
   server: {
     port: 5173,
-    proxy: { '/api': { target: process.env.API_URL ?? 'http://localhost:3000', changeOrigin: false } },
+    proxy: { '/api': { target: process.env.API_URL ?? 'http://localhost:3000', changeOrigin: false, ws: true } },
   },
   // the demo is packed into one HTML file (scripts/build-demo.mjs), so it needs a single script
   build: mode === 'demo'

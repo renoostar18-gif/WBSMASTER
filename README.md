@@ -13,9 +13,9 @@ The product specification (requirements, business rules, data dictionary, Excel 
 | `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing. Pure TypeScript with no dependencies; runs in the browser and on the server. |
 | `apps/api` | HTTP API (Fastify + PostgreSQL): sign-up and sign-in, organisations and roles, plan limits, calendars, projects, WBS edits through the engine, baselines, summary text, activity history. |
 
-| `apps/web` | Web app (React + Vite): sign-in, projects, the Table view with inline editing, inspector, keyboard shortcuts, undo/redo, project settings. English and Arabic (right-to-left), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
+| `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart and Gantt views, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 
-Coming next: Chart and Gantt views, real-time co-editing, then `infra` (Terraform for Google Cloud Dammam).
+Coming next: Summary and Portfolio views, baselines screen, Excel import/export, then `infra` (Terraform for Google Cloud Dammam).
 
 ## Develop
 
@@ -36,7 +36,8 @@ Browser-only demo: `pnpm --filter @wbs-master/web build:demo` packs the web app 
 (`apps/web/dist-demo/wbs-master-demo.html`) where the API is simulated in the browser with the same
 engine, seeded with the 24 kV RMU example. Data stays in that browser.
 
-Browser smoke test (API and web app running): `node apps/web/e2e/smoke.mjs`. Set `CHROMIUM_PATH`
+Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user, all views) and
+`node apps/web/e2e/collab.mjs` (two people editing the same project live). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
 
 Production: `pnpm build`, then run `node apps/api/dist/server.js` with `WEB_DIST=apps/web/dist`;
@@ -57,6 +58,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | Sharing | `GET /projects/:id/members`, `PUT/DELETE /projects/:id/members/:userId` |
 | Baselines | `POST /projects/:id/baselines`, `PATCH/DELETE /projects/:id/baselines/:bid`, `POST .../:bid/restore` |
 | Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` |
+| Live | WebSocket `GET /projects/:id/live`: `presence` (who is viewing, what each has selected) and `changed` (a new version was saved) messages; send `{ "type": "select", "itemId": … }` to share a selection. One API process holds the connections; several instances will need Redis pub/sub. |
 
 `GET /projects/:id` returns the stored project plus `computed`: codes, health, variance, roll-ups and the critical path from the engine.
 
