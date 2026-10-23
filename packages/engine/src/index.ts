@@ -10,3 +10,5 @@ export * from './edits.js';
 export * from './baselines.js';
 export * from './report.js';
 export * from './importing.js';
+export * from './ops.js';
+export * from './diff.js';

@@ -28,3 +28,38 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: wbs_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres@localhost:5432/wbs_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Start the app (API serving the built web app)
+        working-directory: apps/api
+        run: |
+          PORT=3000 WEB_DIST=../web/dist node dist/server.js > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3000/api/health && exit 0; sleep 1; done
+          cat /tmp/api.log; exit 1
+      - name: Browser smoke test
+        working-directory: apps/web
+        run: WEB_URL=http://localhost:3000 node e2e/smoke.mjs

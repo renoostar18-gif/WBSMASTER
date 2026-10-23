@@ -217,6 +217,10 @@ describe('permissions and plan limits', () => {
     expect((await owner.patch(`/api/orgs/${orgId}/members/${me}`, { role: 'admin' })).body.error).toBe('last_owner');
   });
 
+  it('answers unknown API routes with a JSON 404', async () => {
+    expect((await owner.get('/api/nope')).body).toEqual({ error: 'not_found' });
+  });
+
   it('returns 404 for malformed ids instead of a server error', async () => {
     expect((await owner.get('/api/projects/not-a-uuid')).status).toBe(404);
   });

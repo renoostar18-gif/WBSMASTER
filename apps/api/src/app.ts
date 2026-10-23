@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs';
 import cookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
 import { type SessionUser, userForToken } from './auth.js';
@@ -53,6 +55,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(orgRoutes(deps), { prefix: '/api' });
   app.register(calendarRoutes(deps), { prefix: '/api' });
   app.register(projectRoutes(deps), { prefix: '/api' });
+
+  // production: serve the web app, and its index.html for any page route (client-side routing)
+  const dist = deps.config.webDist;
+  if (dist && existsSync(dist)) {
+    app.register(fastifyStatic, { root: dist, wildcard: false });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === 'GET' && !req.url.startsWith('/api/')) return reply.sendFile('index.html');
+      return reply.status(404).send({ error: 'not_found' });
+    });
+  } else {
+    app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'not_found' }));
+  }
   return app;
 }
 

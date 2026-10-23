@@ -1,0 +1,75 @@
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ApiError, api } from '../api.js';
+import { type MessageKey, useI18n } from '../i18n.js';
+import { useSession } from '../session.js';
+import { TopBar } from '../ui.js';
+
+interface ProjectRow { id: string; name: string; updatedAt: string; itemCount: number; role: string }
+
+export function ProjectsPage() {
+  const { t, error, locale } = useI18n();
+  const { me } = useSession();
+  const nav = useNavigate();
+  const orgs = me?.organisations ?? [];
+  const [orgId, setOrgId] = useState(() => orgs[0]?.id ?? '');
+  const org = orgs.find(o => o.id === orgId);
+  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
+  const [err, setErr] = useState('');
+
+  const load = useCallback(async () => {
+    if (!orgId) return;
+    setProjects((await api.get<{ projects: ProjectRow[] }>(`/orgs/${orgId}/projects`)).projects);
+  }, [orgId]);
+  useEffect(() => { load().catch(e => setErr(error(e instanceof ApiError ? e.code : 'server_error'))); }, [load, error]);
+
+  async function create(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const name = String(new FormData(e.currentTarget).get('name') ?? '').trim();
+    if (!name) return;
+    setErr('');
+    try {
+      const r = await api.post<{ id: string }>(`/orgs/${orgId}/projects`, { name, locale });
+      nav(`/p/${r.id}`);
+    } catch (x) {
+      setErr(error(x instanceof ApiError ? x.code : 'server_error'));
+    }
+  }
+
+  const updated = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+
+  return (
+    <div className="shell">
+      <TopBar>
+        {orgs.length > 1 && (
+          <select className="btn" value={orgId} onChange={e => setOrgId(e.target.value)} aria-label="Organisation">
+            {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        )}
+      </TopBar>
+      <div className="view">
+        <div className="page">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1>{t('projects')}</h1>
+            {org && <span className="crumb">{org.name}</span>}
+            {org && <span className="badge">{t(`plan_${org.plan}` as MessageKey)}</span>}
+          </div>
+          <form className="newp" onSubmit={create}>
+            <input name="name" placeholder={t('projectName')} aria-label={t('projectName')} maxLength={200} />
+            <button className="btn primary" type="submit">{t('newProject')}</button>
+          </form>
+          {err && <div className="err" role="alert">{err}</div>}
+          {projects && !projects.length && <p className="hint">{t('noProjects')}</p>}
+          <div className="plist">
+            {projects?.map(p => (
+              <Link key={p.id} to={`/p/${p.id}`} className="card pitem">
+                <b dir="auto">{p.name}</b>
+                <span className="hint">{p.itemCount} {t('items')} · {t('updated')} {updated.format(new Date(p.updatedAt))}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
