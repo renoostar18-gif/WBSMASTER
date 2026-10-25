@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { type AppDeps, clientOf, parse, requireUser } from '../app.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
+import { type NewNotification, excerpt, notifyNow, projectPeople } from '../notify.js';
 import { projectAccess } from '../permissions.js';
 
 type P = { Params: { projectId: string } };
@@ -11,16 +12,8 @@ const body = z.string().trim().min(1).max(5000);
 
 /** Comments (spec 7.1): threads on an item or the project, @mentions, resolve and reopen. Commenters need no edit rights. */
 export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
-  /** People who can see the project, so they can be @mentioned: its members and the organisation's owners and admins. */
-  async function people(projectId: string) {
-    const r = await deps.db.query<{ id: string; name: string; email: string }>(
-      `select distinct u.id, u.name, u.email from users u
-        where u.id in (select user_id from project_members where project_id = $1)
-           or u.id in (select m.user_id from memberships m join projects p on p.org_id = m.org_id
-                        where p.id = $1 and m.role in ('owner', 'admin'))
-        order by u.name`, [projectId]);
-    return r.rows;
-  }
+  /** People who can see the project, so they can be @mentioned. */
+  const people = (projectId: string) => projectPeople(deps.db, projectId);
 
   async function comment(projectId: string, commentId: string) {
     const r = await deps.db.query<{ id: string; parent_id: string | null; author_id: string | null }>(
@@ -74,10 +67,27 @@ export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     const r = await deps.db.query<{ id: string }>(
       `insert into comments (project_id, item_id, parent_id, author_id, body, mentions) values ($1, $2, $3, $4, $5, $6) returning id`,
       [req.params.projectId, itemId, b.parentId ?? null, user.id, b.body, mentions]);
+    const commentId = r.rows[0]!.id;
     // a reply reopens a resolved thread, so it is not missed
     if (b.parentId) await deps.db.query('update comments set resolved_at = null, resolved_by = null where id = $1', [b.parentId]);
     announce(req.params.projectId, user, req);
-    return reply.status(201).send({ id: r.rows[0]!.id, mentions });
+
+    // notify the people mentioned, and everyone else already in the thread (spec 7.1)
+    const meta = await deps.db.query<{ project: string; item: string | null }>(
+      'select p.name as project, i.name as item from projects p left join wbs_items i on i.id = $2 and i.project_id = p.id where p.id = $1',
+      [req.params.projectId, itemId]);
+    const data = { actorName: user.name, projectName: meta.rows[0]!.project, itemName: meta.rows[0]!.item ?? undefined, excerpt: excerpt(b.body) };
+    const base = { projectId: req.params.projectId, itemId, commentId, actorId: user.id, data };
+    const list: NewNotification[] = mentions.map(userId => ({ ...base, userId, kind: 'mention' }));
+    if (b.parentId) {
+      const others = await deps.db.query<{ author_id: string }>(
+        'select distinct author_id from comments where (id = $1 or parent_id = $1) and author_id is not null', [b.parentId]);
+      for (const { author_id } of others.rows) {
+        if (author_id !== user.id && !mentions.includes(author_id) && allowed.has(author_id)) list.push({ ...base, userId: author_id, kind: 'reply' });
+      }
+    }
+    await notifyNow(deps.db, deps.mailer, deps.config.appUrl, list);
+    return reply.status(201).send({ id: commentId, mentions });
   });
 
   app.patch<C>('/projects/:projectId/comments/:commentId', async req => {

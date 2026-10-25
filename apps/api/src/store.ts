@@ -40,15 +40,14 @@ export async function loadProject(q: Queryable, projectId: string, forUpdate = f
   const pr = await q.query<ProjectRow>(`select * from projects where id = $1 ${forUpdate ? 'for update' : ''}`, [projectId]);
   const row = pr.rows[0];
   if (!row) throw notFound('project_not_found');
-  const [items, deps, bls, blItems] = await Promise.all([
-    q.query<ItemRow>('select * from wbs_items where project_id = $1 order by sort_key, id', [projectId]),
-    q.query<{ successor_id: string; predecessor_id: string; lag_days: number }>(
-      'select successor_id, predecessor_id, lag_days from dependencies where project_id = $1 order by successor_id, predecessor_id', [projectId]),
-    q.query<{ id: string; name: string; set_on: string; reason: string }>(
-      'select id, name, set_on, reason from baselines where project_id = $1 order by position', [projectId]),
-    q.query<{ baseline_id: string; item_id: string; planned_start: string | null; planned_finish: string | null }>(
-      'select bi.* from baseline_items bi join baselines b on b.id = bi.baseline_id where b.project_id = $1', [projectId]),
-  ]);
+  // one after another: inside a transaction `q` is a single connection, which cannot run queries in parallel
+  const items = await q.query<ItemRow>('select * from wbs_items where project_id = $1 order by sort_key, id', [projectId]);
+  const deps = await q.query<{ successor_id: string; predecessor_id: string; lag_days: number }>(
+    'select successor_id, predecessor_id, lag_days from dependencies where project_id = $1 order by successor_id, predecessor_id', [projectId]);
+  const bls = await q.query<{ id: string; name: string; set_on: string; reason: string }>(
+    'select id, name, set_on, reason from baselines where project_id = $1 order by position', [projectId]);
+  const blItems = await q.query<{ baseline_id: string; item_id: string; planned_start: string | null; planned_finish: string | null }>(
+    'select bi.* from baseline_items bi join baselines b on b.id = bi.baseline_id where b.project_id = $1', [projectId]);
   const depsBy = new Map<string, { id: string; lag: number }[]>();
   for (const d of deps.rows) {
     let l = depsBy.get(d.successor_id);

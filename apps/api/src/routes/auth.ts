@@ -84,11 +84,13 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     const user = requireUser(req);
     const body = parse(z.object({
       name: z.string().trim().min(1).max(120), locale: z.enum(['en', 'ar']), theme: z.enum(['auto', 'light', 'dark']),
+      notifyEmail: z.enum(['instant', 'daily', 'off']),
     }).partial(), req.body);
     const r = await deps.db.query(
-      `update users set name = coalesce($2, name), locale = coalesce($3, locale), theme = coalesce($4, theme), updated_at = now()
-        where id = $1 returning id, email, name, locale, theme`,
-      [user.id, body.name ?? null, body.locale ?? null, body.theme ?? null]);
+      `update users set name = coalesce($2, name), locale = coalesce($3, locale), theme = coalesce($4, theme),
+              notify_email = coalesce($5, notify_email), updated_at = now()
+        where id = $1 returning id, email, name, locale, theme, notify_email as "notifyEmail"`,
+      [user.id, body.name ?? null, body.locale ?? null, body.theme ?? null, body.notifyEmail ?? null]);
     return { user: r.rows[0] };
   });
 };

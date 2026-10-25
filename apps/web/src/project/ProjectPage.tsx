@@ -76,6 +76,21 @@ export function ProjectPage() {
     if (v) setView(v);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
+  // opened from a notification (?item=…&panel=comments): select the item and show its comments
+  const linked = useRef<string | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const item = q.get('item');
+    if (!store.data || linked.current === location.key) return;
+    linked.current = location.key;
+    if (item && store.items.some(i => i.id === item)) {
+      setSelected(item);
+      if (view === 'summary') setView('table');
+      requestAnimationFrame(() => document.querySelector(`tr[data-id="${item}"]`)?.scrollIntoView({ block: 'center' }));
+    }
+    if (q.get('panel') === 'comments') { setCommentScope(item ? 'item' : 'all'); setPanel('comments'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key, location.search, !!store.data]);
   const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const i18n = useI18n();
