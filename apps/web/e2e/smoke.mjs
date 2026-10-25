@@ -73,7 +73,7 @@ await deps.press('Enter');
 const elecForecastFinish = row('Electrical design').locator('input[type=date]').nth(3);
 await elecForecastFinish.fill('2026-10-25');
 await elecForecastFinish.press('Enter');
-await page.getByText('linked items moved').waitFor();
+await page.getByText(/linked items? moved/).waitFor();
 check(await row('Mechanical design').locator('input[type=date]').nth(2).inputValue() === '2026-10-26', 'auto-schedule moves the successor to Monday 26 Oct');
 check(await row('Mechanical design').locator('input[type=date]').nth(3).inputValue() === '2026-11-01', '…keeping 5 working days (finish Sunday 1 Nov)');
 check((await row('Electrical design').locator('.var').innerText()).trim() === '+1d', 'variance is +1 working day');
@@ -103,12 +103,105 @@ await page.reload();
 await page.locator('td.code').first().waitFor();
 check(await row('Mechanical design').locator('input[type=date]').nth(2).inputValue() === '2026-10-26', 'after reload the server has the same schedule');
 
+// Gantt: drag a bar one week later, draw a link with the dot, check the arrows
+await page.getByRole('button', { name: 'Gantt' }).click();
+await page.getByRole('button', { name: 'Day' }).click();
+const gRow = n => page.locator('.g-row', { has: page.locator('.n', { hasText: new RegExp(`^${n}$`) }) });
+const bar = gRow('Mechanical design').locator('.bar');
+await bar.waitFor();
+const bb = await bar.boundingBox();
+await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+await page.mouse.down();
+await page.mouse.move(bb.x + bb.width / 2 + 3 * 30, bb.y + bb.height / 2, { steps: 6 }); // 3 days at 30 px a day
+await page.mouse.up();
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Table' }).click();
+check(await row('Mechanical design').locator('input[type=date]').nth(2).inputValue() === '2026-10-29', 'dragging a Gantt bar 3 days moves its forecast start (26 → 29 Oct)');
+await page.getByRole('button', { name: 'Gantt' }).click();
+// give the certificate dates by clicking its empty timeline, then link it after mechanical design
+const certTrack = gRow('Type test certificate').locator('.g-track');
+const tb = await certTrack.boundingBox();
+const todayLine = await page.locator('.today').boundingBox();
+await page.mouse.click(todayLine.x + 5 * 30, tb.y + tb.height / 2);
+await page.waitForTimeout(300);
+check(await gRow('Type test certificate').locator('.bar').count() === 1, 'clicking an undated row\'s timeline gives it dates');
+const mechBar = await gRow('Mechanical design').locator('.bar').boundingBox();
+await page.mouse.move(mechBar.x + mechBar.width / 2, mechBar.y + 4);
+const dot = gRow('Mechanical design').locator('.lk');
+const db = await dot.boundingBox();
+await page.mouse.move(db.x + db.width / 2, db.y + db.height / 2);
+await page.mouse.down();
+const cb = await gRow('Type test certificate').locator('.g-left').boundingBox();
+await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(400);
+check(await page.locator('.g-links path').count() >= 2, 'dragging the link dot onto another row draws a new arrow');
+await shot('3-gantt');
+
+// Chart: drag the certificate box onto Design to move it under Design
+await page.getByRole('button', { name: 'Chart' }).click();
+await page.locator('.box[data-box]').first().waitFor();
+await page.locator('.box', { hasText: 'Type test certificate' }).dragTo(page.locator('.box', { hasText: 'Design' }).first());
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Table' }).click();
+const codes3 = (await page.locator('td.code').allInnerTexts()).map(c => c.trim().replace(/\s*CP$/, ''));
+check(codes3.join(',') === '1,1.1,1.2,1.3', `dragging a chart box onto another moves it under it (got ${codes3.join(',')})`);
+await page.getByRole('button', { name: 'Chart' }).click();
+await shot('4-chart');
+await page.getByRole('button', { name: 'Table' }).click();
+
+// Summary: write the narrative from the data, fill the risks, and check both are saved
+await page.getByRole('button', { name: 'Summary', exact: true }).click();
+await page.getByRole('heading', { name: '24 kV RMU development' }).waitFor();
+await page.getByRole('button', { name: 'Write from WBS data' }).click();
+await page.waitForFunction(() => [...document.querySelectorAll('textarea')].some(t => t.value.includes('24 kV RMU development is')));
+check(true, 'the summary paragraph is written from the WBS data');
+await page.getByRole('button', { name: 'Fill from WBS' }).nth(2).click();
+await page.waitForTimeout(300);
+const risks = await page.locator('textarea').nth(3).inputValue();
+check(risks.includes('Mechanical design'), 'risks are filled from delayed and at-risk items');
+await shot('7-summary');
+
+// Baselines: save one with a reason (forecast becomes the plan), then compare against the original
+await page.getByRole('button', { name: 'Baselines' }).click();
+await page.getByLabel('Reason (shown in reports)').fill('Supplier delay accepted');
+await page.getByRole('button', { name: 'Save a new baseline from the current forecast' }).click();
+await page.getByText('Baseline saved').waitFor();
+check(await page.locator('.bl-row').count() === 3, 'saving a baseline keeps the original too (latest plan + 2 baselines)');
+// choosing a baseline saves first, then the radio button follows
+await page.locator('.bl-row', { hasText: 'Original baseline' }).locator('input[type=radio]').click();
+await page.locator('.base-chip').waitFor();
+await page.getByRole('button', { name: 'Close' }).click();
+check(await page.locator('.base-chip').innerText().then(x => x.includes('Original baseline')), 'the toolbar shows which baseline is being compared');
+check(await page.getByText('Supplier delay accepted').count() >= 1, 'the baseline reason appears in the baseline history');
+await page.reload();
+await page.getByRole('heading', { name: '24 kV RMU development' }).waitFor();
+check(await page.locator('textarea').first().inputValue().then(v => v.includes('24 kV RMU development is')), 'summary text is saved on the server');
+await page.locator('.base-chip button').click();
+await page.waitForTimeout(400);
+
+// Activity history
+await page.getByRole('button', { name: 'Table' }).click();
+await page.getByRole('button', { name: 'Activity' }).click();
+await page.locator('.alist li').first().waitFor();
+const acts = await page.locator('.alist li').allInnerTexts();
+check(acts.some(a => a.includes('saved the baseline')) && acts.some(a => a.includes('made') && a.includes('wait for')), 'activity lists the baseline save and the link');
+await shot('8-activity');
+await page.getByRole('button', { name: 'Activity' }).click();
+
 // Arabic, right to left
 await page.getByRole('button', { name: 'العربية' }).click();
 check(await page.evaluate(() => document.documentElement.dir) === 'rtl', 'Arabic switches the page to right-to-left');
 await page.getByText('المستويات').waitFor();
 await row('Electrical design').locator('td.code').click();
 await shot('2-arabic');
+await page.getByRole('button', { name: 'جانت' }).click();
+await page.locator('.g-row').first().waitFor();
+await shot('5-gantt-arabic');
+await page.getByRole('button', { name: 'الملخص' }).click();
+await page.getByText('الملخص التنفيذي').first().waitFor();
+await shot('9-summary-arabic');
+await page.getByRole('button', { name: 'جدول' }).click();
 await page.getByRole('button', { name: 'English' }).click();
 
 check(errors.length === 0, `no browser errors${errors.length ? ': ' + errors.join(' | ') : ''}`);

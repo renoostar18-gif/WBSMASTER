@@ -1,7 +1,7 @@
 import { type ComputedProject, type EditableField, type Op, type Status, Tree, type WbsItem, formatDeps } from '@wbs-master/engine';
 import { type KeyboardEvent, useMemo, useRef } from 'react';
 import { type MessageKey, useI18n } from '../i18n.js';
-import { Pill, Var } from '../ui.js';
+import { Pill, Var, Who } from '../ui.js';
 
 const STATUSES: Status[] = ['auto', 'not_started', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 
@@ -19,6 +19,7 @@ export interface TableProps {
   onEdit: (ops: Op[]) => void;
   onAddChild: (parentId: string | null) => void;
   onEnterInName: (id: string) => void;
+  othersByItem?: Map<string, string[]>;
 }
 
 /** Text input that commits on blur or Enter and reverts on Escape. Re-mounts when the stored value changes. */
@@ -104,7 +105,7 @@ export function TableView(p: TableProps) {
             return (
               <tr key={n.id} data-id={n.id} className={`lv${Math.min(i.level, 6)}${parent ? ' parent' : ''}${p.selected === n.id ? ' sel' : ''}`}
                 onMouseDown={() => p.onSelect(n.id)}>
-                <td className="code stk1">{i.code}{p.computed.critical.has(n.id) && <> <span className="cp" title={t('critical')}>CP</span></>}</td>
+                <td className="code stk1">{i.code}{p.computed.critical.has(n.id) && <> <span className="cp" title={t('critical')}>CP</span></>}<Who names={p.othersByItem?.get(n.id)} /></td>
                 <td className="stk2">
                   <div className="namecell" style={{ paddingInlineStart: (i.level - 1) * 16 }}>
                     {expandable
