@@ -161,3 +161,12 @@ function longestIncreasing(keys: (number | undefined)[]): boolean[] {
   for (let i = tails.length ? tails[tails.length - 1]! : -1; i >= 0; i = prev[i]!) keep[i] = true;
   return keep;
 }
+
+/** Today's trend point (spec 4.9): one row per project per day, replaced by later saves that day. */
+export async function recordSnapshot(q: Queryable, projectId: string, c: ComputedProject, today: number): Promise<void> {
+  const p = c.project;
+  await q.query(
+    `insert into project_snapshots (project_id, date, progress, planned_pct, variance_days) values ($1, $2, $3, $4, $5)
+     on conflict (project_id, date) do update set progress = excluded.progress, planned_pct = excluded.planned_pct, variance_days = excluded.variance_days`,
+    [projectId, toIso(today), p.progress, p.plannedPct, p.variance]);
+}

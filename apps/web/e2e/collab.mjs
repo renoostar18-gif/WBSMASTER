@@ -52,7 +52,7 @@ check(true, 'Sara’s rename appears on Rayan’s page without reloading');
 await pa.waitForFunction(() => [...document.querySelectorAll('input[type=date]')].some(i => i.value === '2026-11-12'), null, { timeout: 5000 });
 check(true, 'Sara’s new finish date appears on Rayan’s page');
 await pa.getByText('just changed this item').waitFor({ timeout: 5000 });
-check(true, 'Rayan is told that Sara changed the item he has selected');
+check(true, 'Rayan is told that Sara changed the item Rayan has selected');
 if (shots) await pa.screenshot({ path: `${shots}/6-collab.png` });
 
 // Sara leaves; Rayan's viewer list empties

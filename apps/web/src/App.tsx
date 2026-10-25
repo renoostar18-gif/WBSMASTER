@@ -3,6 +3,7 @@ import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from 'react-rout
 import { DEMO } from './api.js';
 import { I18nProvider } from './i18n.js';
 import { AuthPage } from './pages/Auth.js';
+import { PortfolioPage } from './pages/Portfolio.js';
 import { ProjectsPage } from './pages/Projects.js';
 import { ProjectPage } from './project/ProjectPage.js';
 import { SessionProvider, useSession } from './session.js';
@@ -34,6 +35,7 @@ export function App() {
               <Route path="/signup" element={<PublicOnly><AuthPage mode="signup" /></PublicOnly>} />
               <Route path="/" element={<Private><ProjectsPage /></Private>} />
               <Route path="/p/:projectId" element={<Private><ProjectPage /></Private>} />
+              <Route path="/portfolio/:orgId" element={<Private><PortfolioPage /></Private>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>

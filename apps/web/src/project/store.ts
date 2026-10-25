@@ -34,7 +34,8 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 export interface Viewer { connId: string; userId: string; name: string; selected: string | null }
 type LiveMessage =
   | { type: 'presence'; viewers: Viewer[] }
-  | { type: 'changed'; version: number; actorId: string; actorName: string; items: string[]; clientId: string | null };
+  | { type: 'changed'; version: number; actorId: string; actorName: string; items: string[]; clientId: string | null }
+  | { type: 'comments'; actorId: string; clientId: string | null };
 
 /** Someone else saved a change: who, and which items it touched. */
 export interface RemoteChange { actorName: string; items: string[] }
@@ -68,6 +69,8 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
   const version = useRef(0);
   const refreshAfterQueue = useRef(false);
   const [viewers, setViewers] = useState<Viewer[]>([]);
+  /** Goes up when someone else changes the comments, so open comment lists reload. */
+  const [commentsTick, setCommentsTick] = useState(0);
   const socket = useRef<WebSocket | null>(null);
   const remoteCb = useRef(onRemoteChange);
   remoteCb.current = onRemoteChange;
@@ -140,6 +143,7 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
       ws.onmessage = ev => {
         const m = JSON.parse(String(ev.data)) as LiveMessage;
         if (m.type === 'presence') { setViewers(m.viewers); return; }
+        if (m.type === 'comments') { if (m.clientId !== CLIENT_ID) setCommentsTick(x => x + 1); return; }
         if (m.clientId === CLIENT_ID || m.version <= version.current) return; // this tab's own save, or already seen
         if (m.actorId !== me) remoteCb.current?.({ actorName: m.actorName, items: m.items });
         if (pending.current) refreshAfterQueue.current = true;
@@ -259,10 +263,11 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
 
   return {
     data, loadError, save, items, model, computed, calendar, saveSummary, baselines, activity,
-    run, undo, redo, updateProject, reload: load, viewers, shareSelection,
+    run, undo, redo, updateProject, reload: load, viewers, shareSelection, commentsTick,
     canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0,
     canEdit: data ? data.role === 'admin' || data.role === 'editor' : false,
     isAdmin: data?.role === 'admin',
+    canComment: data ? data.role !== 'viewer' : false,
   };
 }
 

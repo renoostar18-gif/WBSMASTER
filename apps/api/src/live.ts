@@ -15,7 +15,8 @@ export interface Viewer {
 
 export type LiveMessage =
   | { type: 'presence'; viewers: Viewer[] }
-  | { type: 'changed'; version: number; actorId: string; actorName: string; items: string[]; clientId: string | null };
+  | { type: 'changed'; version: number; actorId: string; actorName: string; items: string[]; clientId: string | null }
+  | { type: 'comments'; actorId: string; clientId: string | null };
 
 interface Conn { socket: WebSocket; viewer: Viewer }
 
@@ -50,6 +51,11 @@ export class LiveHub {
   /** Tell everyone viewing the project that a new version was saved. */
   changed(projectId: string, version: number, actor: { id: string; name: string }, items: string[] = [], clientId: string | null = null) {
     this.send(projectId, { type: 'changed', version, actorId: actor.id, actorName: actor.name, items, clientId });
+  }
+
+  /** Tell everyone viewing the project that its comments changed. */
+  comments(projectId: string, actor: { id: string }, clientId: string | null = null) {
+    this.send(projectId, { type: 'comments', actorId: actor.id, clientId });
   }
 
   viewers(projectId: string): Viewer[] {
