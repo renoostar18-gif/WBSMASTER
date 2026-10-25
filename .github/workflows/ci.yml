@@ -75,3 +75,6 @@ jobs:
       - name: Notifications test
         working-directory: apps/web
         run: WEB_URL=http://localhost:3000 node e2e/notifications.mjs
+      - name: API keys and webhooks test
+        working-directory: apps/web
+        run: WEB_URL=http://localhost:3000 node e2e/integrations.mjs

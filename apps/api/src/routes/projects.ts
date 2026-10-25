@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
-  WorkCalendar, autoSchedule, computeProject, restoreBaseline, saveBaseline, toDay, todayDay,
+  type ComputedProject, type WbsItem, WorkCalendar, autoSchedule, computeProject, restoreBaseline, saveBaseline, toDay, todayDay,
 } from '@wbs-master/engine';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import { type ProjectRole, orgAccess, projectAccess } from '../permissions.js';
 import { PLANS } from '../plans.js';
 import { itemNotifications, notifyNow, projectPeople } from '../notify.js';
 import { saveItems } from '../save.js';
+import { emitEvent } from './integrations.js';
 import { loadProject, recordSnapshot, serializeComputed } from '../store.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => toDay(s) != null, 'invalid date');
@@ -33,6 +34,12 @@ export async function recalcProjectsUsingCalendar(c: Tx, orgId: string, actorId:
     moved += s.moved.length;
   }
   return moved;
+}
+
+/** An item as the public API and webhooks show it: stored fields plus its WBS code and health. */
+export function publicItem(i: WbsItem, c: ComputedProject) {
+  const info = c.items.get(i.id);
+  return { ...i, code: info?.code ?? null, health: info?.health ?? null, progress: info?.progress ?? i.progress };
 }
 
 export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
@@ -69,7 +76,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.get<{ Params: { orgId: string }; Querystring: { archived?: string } }>('/orgs/:orgId/projects', async req => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId);
+    const acc = await orgAccess(deps.db, user, req.params.orgId);
     const all = acc.role === 'owner' || acc.role === 'admin';
     const r = await deps.db.query(
       `select p.id, p.name, p.updated_at as "updatedAt", p.archived_at is not null as archived,
@@ -86,7 +93,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.post<{ Params: { orgId: string } }>('/orgs/:orgId/projects', async (req, reply) => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId, 'member');
+    const acc = await orgAccess(deps.db, user, req.params.orgId, 'member');
     const body = parse(z.object({ name: z.string().trim().min(1).max(200), locale: z.enum(['en', 'ar']).optional() }), req.body);
     const id = await tx(deps.db, async c => {
       await c.query('select id from organisations where id = $1 for update', [req.params.orgId]);
@@ -101,18 +108,19 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
         [pid, user.id, JSON.stringify(body.name)]);
       return pid;
     });
+    await emitEvent(deps, req.params.orgId, 'project.created', { project: { id, name: body.name }, actor: { id: user.id, name: user.name } });
     return reply.status(201).send({ id });
   });
 
   app.get<P>('/projects/:projectId', async req => {
     const user = requireUser(req);
-    const acc = await projectAccess(deps.db, user.id, req.params.projectId);
+    const acc = await projectAccess(deps.db, user, req.params.projectId);
     return projectPayload(req.params.projectId, acc.role);
   });
 
   app.patch<P>('/projects/:projectId', async req => {
     const user = requireUser(req);
-    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const acc = await projectAccess(deps.db, user, req.params.projectId, 'admin');
     const body = parse(z.object({
       name: z.string().trim().min(1).max(200),
       statusDate: isoDate.nullable(),
@@ -167,7 +175,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.delete<P>('/projects/:projectId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    await projectAccess(deps.db, user, req.params.projectId, 'admin');
     await deps.db.query('delete from projects where id = $1', [req.params.projectId]);
     return { ok: true };
   });
@@ -175,7 +183,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   /** Apply a batch of edits atomically through the engine; returns the new version and calculations. */
   app.post<P>('/projects/:projectId/ops', async req => {
     const user = requireUser(req);
-    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'editor');
+    const acc = await projectAccess(deps.db, user, req.params.projectId, 'editor');
     const body = parse(opsBody, req.body);
     const result = await tx(deps.db, async c => {
       const loaded = await loadProject(c, req.params.projectId, true);
@@ -190,6 +198,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       [...result.saved.added, ...result.saved.updated, ...result.saved.removed], clientOf(req));
     const computed = computeProject(result.r.project, { calendar: result.cal, today: today() });
     await recordSnapshot(deps.db, req.params.projectId, computed, today());
+    const computedBefore = computeProject(result.before, { calendar: result.cal, today: today() });
     // items assigned to someone, and items that turned red (spec 7.1)
     const touched = new Set([...result.saved.added, ...result.saved.updated]);
     if (touched.size) {
@@ -197,8 +206,28 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       await notifyNow(deps.db, deps.mailer, deps.config.appUrl, itemNotifications({
         projectId: req.params.projectId, projectName: result.r.project.name, actor: user, people,
         before: result.before.items, after: result.r.project.items.filter(i => touched.has(i.id)),
-        computedBefore: computeProject(result.before, { calendar: result.cal, today: today() }), computedAfter: computed,
+        computedBefore, computedAfter: computed,
       }));
+    }
+    // webhooks (spec 7.2): what changed, and whose health changed
+    const project = { id: req.params.projectId, name: result.r.project.name };
+    const actor = { id: user.id, name: user.name };
+    const changed = (ids: string[]) => ids.map(id => publicItem(result.r.project.items.find(i => i.id === id)!, computed));
+    if (touched.size || result.saved.removed.length) {
+      await emitEvent(deps, acc.orgId, 'item.changed', {
+        project, actor, version: result.saved.version,
+        added: changed(result.saved.added), updated: changed(result.saved.updated), removed: result.saved.removed,
+      });
+    }
+    const health = [...computed.items].flatMap(([id, a]) => {
+      const before = computedBefore.items.get(id)?.health;
+      if (!before || before === a.health) return [];
+      return [{ id, code: a.code, name: result.r.project.items.find(i => i.id === id)!.name, from: before, to: a.health }];
+    });
+    if (health.length || computedBefore.project.health !== computed.project.health) {
+      await emitEvent(deps, acc.orgId, 'health.changed', {
+        project: { ...project, from: computedBefore.project.health, to: computed.project.health }, actor, items: health,
+      });
     }
     return {
       version: result.saved.version,
@@ -213,7 +242,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   // ---- members ----
   app.get<P>('/projects/:projectId/members', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId);
+    await projectAccess(deps.db, user, req.params.projectId);
     const r = await deps.db.query(
       `select u.id, u.email, u.name, pm.role from project_members pm join users u on u.id = pm.user_id
         where pm.project_id = $1 order by u.name`, [req.params.projectId]);
@@ -222,7 +251,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.put<{ Params: { projectId: string; userId: string } }>('/projects/:projectId/members/:userId', async req => {
     const user = requireUser(req);
-    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const acc = await projectAccess(deps.db, user, req.params.projectId, 'admin');
     const body = parse(z.object({ role: projectRole }), req.body);
     await tx(deps.db, async c => {
       const m = await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [acc.orgId, req.params.userId]);
@@ -237,7 +266,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.delete<{ Params: { projectId: string; userId: string } }>('/projects/:projectId/members/:userId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, user.id === req.params.userId ? 'viewer' : 'admin');
+    await projectAccess(deps.db, user, req.params.projectId, user.id === req.params.userId ? 'viewer' : 'admin');
     await tx(deps.db, async c => {
       const r = await c.query('delete from project_members where project_id = $1 and user_id = $2', [req.params.projectId, req.params.userId]);
       if (!r.rowCount) throw notFound('member_not_found');
@@ -248,7 +277,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   // ---- baselines (project admins only, spec 4.8) ----
   app.post<P>('/projects/:projectId/baselines', async (req, reply) => {
     const user = requireUser(req);
-    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    const acc = await projectAccess(deps.db, user, req.params.projectId, 'admin');
     const body = parse(z.object({ name: z.string().trim().max(120).optional(), reason: z.string().trim().max(1000).optional() }), req.body ?? {});
     const out = await tx(deps.db, async c => {
       const loaded = await loadProject(c, req.params.projectId, true);
@@ -282,6 +311,10 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     await announce(req.params.projectId, user, [], false, clientOf(req));
     const people = await projectPeople(deps.db, req.params.projectId);
     const projectName = (await deps.db.query<{ name: string }>('select name from projects where id = $1', [req.params.projectId])).rows[0]!.name;
+    await emitEvent(deps, acc.orgId, 'baseline.saved', {
+      project: { id: req.params.projectId, name: projectName }, actor: { id: user.id, name: user.name },
+      baselines: out.map(name => ({ name, reason: name === out.at(-1) ? body.reason ?? '' : '' })),
+    });
     // the automatic "Original baseline" saved alongside the first one is not news
     const named = out.at(-1);
     if (named) {
@@ -295,7 +328,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.patch<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    await projectAccess(deps.db, user, req.params.projectId, 'admin');
     const body = parse(z.object({ name: z.string().trim().min(1).max(120) }), req.body);
     const r = await deps.db.query('update baselines set name = $3 where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId, body.name]);
     if (!r.rowCount) throw notFound('baseline_not_found');
@@ -305,7 +338,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.post<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId/restore', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    await projectAccess(deps.db, user, req.params.projectId, 'admin');
     await tx(deps.db, async c => {
       const loaded = await loadProject(c, req.params.projectId, true);
       if (!loaded.project.baselines.some(b => b.id === req.params.baselineId)) throw notFound('baseline_not_found');
@@ -318,7 +351,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.delete<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'admin');
+    await projectAccess(deps.db, user, req.params.projectId, 'admin');
     const r = await deps.db.query('delete from baselines where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId]);
     if (!r.rowCount) throw notFound('baseline_not_found');
     await announce(req.params.projectId, user, [], true, clientOf(req));
@@ -328,7 +361,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   // ---- summary text and activity ----
   app.put<P>('/projects/:projectId/summary', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'editor');
+    await projectAccess(deps.db, user, req.params.projectId, 'editor');
     const t = z.string().max(10_000);
     const body = parse(z.object({ narrative: t, achievements: t, nextSteps: t, risks: t, decisions: t }).partial(), req.body);
     await deps.db.query(
@@ -345,7 +378,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.get<P & { Querystring: { before?: string; itemId?: string } }>('/projects/:projectId/activity', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId);
+    await projectAccess(deps.db, user, req.params.projectId);
     const r = await deps.db.query(
       `select a.id, a.item_id as "itemId", a.action, a.field, a.old_value as "oldValue", a.new_value as "newValue", a.at,
               u.id as "actorId", u.name as "actorName"

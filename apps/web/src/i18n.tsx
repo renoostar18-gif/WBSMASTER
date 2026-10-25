@@ -168,6 +168,21 @@ const en = {
   n_assigned: '{actor} assigned {item} in {project} to you', n_turned_red: '{item} in {project} is now delayed ({n} working days late)',
   n_turned_red_one: '{item} in {project} is now delayed (1 working day late)', n_turned_red_overdue: '{item} in {project} is now delayed: its forecast finish has passed',
   n_baseline: '{actor} saved the baseline “{name}” in {project}',
+  // integrations
+  integrations: 'API & webhooks', accountSettings: 'Settings', apiKeys: 'API keys', apiDocs: 'API reference',
+  apiKeysHint: 'Connect your own tools. A key acts with your permissions in one organisation; send it as “Authorization: Bearer <key>”.',
+  apiNeedsPlan: 'API keys are part of the Team and Business plans.', keyName: 'Name', keyNamePh: 'e.g. Power BI report', orgLabel: 'Organisation',
+  access: 'Access', scope_read: 'Read only', scope_write: 'Read and change', createKey: 'Create key', created: 'Created', lastUsed: 'Last used', never: 'Never',
+  revoke: 'Revoke', confirmRevoke: 'Revoke? It stops working at once', newKeyOnce: 'Your new API key. Copy it now: it will not be shown again.',
+  newSecretOnce: 'Signing secret for this webhook. Copy it now: it will not be shown again.', copy: 'Copy', copiedPlain: 'Copied.', savedIt: 'I have saved it',
+  webhooks: 'Webhooks', webhooksHint: 'WBS Master sends a signed POST to your address when these things happen in this organisation. Failed deliveries are retried for about 15 hours.',
+  webhookUrl: 'Address (https)', events: 'Events', addWebhook: 'Add webhook', paused: 'Paused', pause: 'Pause', resume: 'Resume',
+  sendTest: 'Send a test', pingSent: 'Test sent.', deliveries: 'Deliveries', noDeliveries: 'Nothing sent yet.', lastDelivery: 'Last delivery',
+  attemptsN: '{n} attempts', attemptsN_one: '1 attempt', dl_pending: 'Waiting to retry', dl_delivered: 'Delivered', dl_failed: 'Failed',
+  ev_item_changed: 'Items changed', ev_health_changed: 'Health changed', ev_baseline_saved: 'Baseline saved', ev_project_created: 'Project created',
+  e_plan_api: 'The API and webhooks are part of the Team and Business plans.', e_webhook_https_only: 'The address must start with https://.',
+  e_webhook_private_address: 'That address is inside a private network. Use a public https address.', e_webhook_bad_url: 'That is not a valid address.',
+  e_webhook_unresolvable: 'That address could not be found.', e_rate_limited: 'Too many attempts. Wait a minute and try again.',
 };
 
 const ar: typeof en = {
@@ -333,6 +348,21 @@ const ar: typeof en = {
   n_assigned: 'أسند إليك {actor} البند {item} في {project}', n_turned_red: 'أصبح {item} في {project} متأخرًا ({n} أيام عمل)',
   n_turned_red_one: 'أصبح {item} في {project} متأخرًا (يوم عمل واحد)', n_turned_red_overdue: 'أصبح {item} في {project} متأخرًا: تجاوز تاريخ النهاية المتوقع',
   n_baseline: 'حفظ {actor} خط الأساس «{name}» في {project}',
+  // integrations
+  integrations: 'الواجهة البرمجية وخطافات الويب', accountSettings: 'الإعدادات', apiKeys: 'مفاتيح الواجهة البرمجية', apiDocs: 'مرجع الواجهة البرمجية',
+  apiKeysHint: 'اربط أدواتك. يعمل المفتاح بصلاحياتك في مؤسسة واحدة؛ أرسله في الترويسة «Authorization: Bearer <key>».',
+  apiNeedsPlan: 'مفاتيح الواجهة البرمجية متاحة في باقتي الفريق والأعمال.', keyName: 'الاسم', keyNamePh: 'مثال: تقرير Power BI', orgLabel: 'المؤسسة',
+  access: 'الصلاحية', scope_read: 'قراءة فقط', scope_write: 'قراءة وتعديل', createKey: 'إنشاء مفتاح', created: 'تاريخ الإنشاء', lastUsed: 'آخر استخدام', never: 'أبدًا',
+  revoke: 'إلغاء', confirmRevoke: 'إلغاء؟ سيتوقف فورًا', newKeyOnce: 'مفتاحك الجديد. انسخه الآن: لن يظهر مرة أخرى.',
+  newSecretOnce: 'سرّ التوقيع لهذا الخطاف. انسخه الآن: لن يظهر مرة أخرى.', copy: 'نسخ', copiedPlain: 'تم النسخ.', savedIt: 'حفظته',
+  webhooks: 'خطافات الويب', webhooksHint: 'يرسل WBS Master طلب POST موقّعًا إلى عنوانك عند حدوث هذه الأمور في هذه المؤسسة. تُعاد محاولة الإرسال الفاشل لمدة 15 ساعة تقريبًا.',
+  webhookUrl: 'العنوان (https)', events: 'الأحداث', addWebhook: 'إضافة خطاف', paused: 'موقوف', pause: 'إيقاف', resume: 'استئناف',
+  sendTest: 'إرسال تجربة', pingSent: 'أُرسلت التجربة.', deliveries: 'الإرسالات', noDeliveries: 'لم يُرسل شيء بعد.', lastDelivery: 'آخر إرسال',
+  attemptsN: '{n} محاولات', attemptsN_one: 'محاولة واحدة', dl_pending: 'بانتظار إعادة المحاولة', dl_delivered: 'تم التسليم', dl_failed: 'فشل',
+  ev_item_changed: 'تغيّر البنود', ev_health_changed: 'تغيّر الوضع', ev_baseline_saved: 'حفظ خط أساس', ev_project_created: 'إنشاء مشروع',
+  e_plan_api: 'الواجهة البرمجية وخطافات الويب متاحة في باقتي الفريق والأعمال.', e_webhook_https_only: 'يجب أن يبدأ العنوان بـ https://.',
+  e_webhook_private_address: 'هذا العنوان داخل شبكة خاصة. استخدم عنوان https عامًا.', e_webhook_bad_url: 'هذا العنوان غير صالح.',
+  e_webhook_unresolvable: 'تعذّر العثور على هذا العنوان.', e_rate_limited: 'محاولات كثيرة. انتظر دقيقة ثم حاول مجددًا.',
 };
 
 export type MessageKey = keyof typeof en;

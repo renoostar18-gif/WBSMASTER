@@ -24,7 +24,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
 
   app.get<{ Params: { orgId: string } }>('/orgs/:orgId/calendars', async req => {
     const user = requireUser(req);
-    await orgAccess(deps.db, user.id, req.params.orgId);
+    await orgAccess(deps.db, user, req.params.orgId);
     const cals = await deps.db.query(
       'select id, name, week_days as "weekDays", is_default as "isDefault" from calendars where org_id = $1 order by is_default desc, name',
       [req.params.orgId]);
@@ -37,7 +37,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
 
   app.post<{ Params: { orgId: string } }>('/orgs/:orgId/calendars', async (req, reply) => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    const acc = await orgAccess(deps.db, user, req.params.orgId, 'admin');
     if (!PLANS[acc.plan].multipleCalendars) throw forbidden('plan_single_calendar');
     const body = parse(z.object({ name: z.string().trim().min(1).max(120), weekDays }), req.body);
     const r = await deps.db.query<{ id: string }>(
@@ -47,7 +47,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
 
   app.patch<{ Params: { orgId: string; calendarId: string } }>('/orgs/:orgId/calendars/:calendarId', async req => {
     const user = requireUser(req);
-    await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const body = parse(z.object({ name: z.string().trim().min(1).max(120), weekDays, isDefault: z.literal(true) }).partial(), req.body);
     const moved = await tx(deps.db, async c => {
       const cur = await c.query('select 1 from calendars where id = $1 and org_id = $2 for update', [req.params.calendarId, req.params.orgId]);
@@ -66,7 +66,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
   /** Add or replace exceptions (holidays, extra working days). `saudiYear` adds that year's Saudi holidays. */
   app.post<{ Params: { orgId: string; calendarId: string } }>('/orgs/:orgId/calendars/:calendarId/exceptions', async req => {
     const user = requireUser(req);
-    await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const body = parse(z.object({
       exceptions: z.array(exception).max(400).default([]),
       saudiYear: z.number().int().min(2000).max(2100).optional(),
@@ -91,7 +91,7 @@ export const calendarRoutes = (deps: AppDeps): FastifyPluginAsync => async app =
 
   app.delete<{ Params: { orgId: string; calendarId: string; date: string } }>('/orgs/:orgId/calendars/:calendarId/exceptions/:date', async req => {
     const user = requireUser(req);
-    await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const moved = await tx(deps.db, async c => {
       const r = await c.query(
         `delete from calendar_exceptions e using calendars c

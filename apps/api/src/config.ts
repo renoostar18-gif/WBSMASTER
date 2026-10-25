@@ -14,6 +14,13 @@ export interface Config {
   /** SMTP connection URL (smtps://user:pass@host:465). Unset: emails are only logged. */
   smtpUrl: string | null;
   mailFrom: string;
+  /** Requests per minute for each API key, and sign-in or sign-up attempts per minute from one address. */
+  apiRateLimit: number;
+  authRateLimit: number;
+  /** Behind a load balancer (Cloud Run): take the client address from X-Forwarded-For. */
+  trustProxy: boolean;
+  /** Allow webhooks to private and local addresses (development and tests only). */
+  webhookAllowPrivate: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -27,5 +34,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     appUrl: (env.APP_URL ?? 'http://localhost:5173').replace(/\/$/, ''),
     smtpUrl: env.SMTP_URL || null,
     mailFrom: env.MAIL_FROM ?? 'WBS Master <no-reply@wbs-master.example>',
+    apiRateLimit: Number(env.API_RATE_LIMIT ?? 300),
+    authRateLimit: Number(env.AUTH_RATE_LIMIT ?? 20),
+    trustProxy: env.TRUST_PROXY === '1',
+    webhookAllowPrivate: env.WEBHOOK_ALLOW_PRIVATE ? env.WEBHOOK_ALLOW_PRIVATE === '1' : env.NODE_ENV !== 'production',
   };
 }

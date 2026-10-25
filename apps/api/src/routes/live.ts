@@ -12,7 +12,7 @@ export const liveRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     const user = req.user;
     if (!user) { socket.close(4401, 'not_signed_in'); return; }
     try {
-      await projectAccess(deps.db, user.id, req.params.projectId);
+      await projectAccess(deps.db, user, req.params.projectId);
     } catch {
       socket.close(4404, 'project_not_found');
       return;

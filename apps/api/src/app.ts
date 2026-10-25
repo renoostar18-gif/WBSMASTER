@@ -8,8 +8,14 @@ import { type SessionUser, userForToken } from './auth.js';
 import type { Config } from './config.js';
 import type { Db } from './db.js';
 import { ApiError } from './errors.js';
+import { userForApiKey } from './apikeys.js';
+import { renderApiDocs } from './apidocs.js';
+import { openApi } from './openapi.js';
 import { LiveHub } from './live.js';
 import { type Mailer, createMailer } from './mailer.js';
+import { RateLimiter } from './ratelimit.js';
+import { integrationRoutes } from './routes/integrations.js';
+import { WebhookDispatcher } from './webhooks.js';
 import { OpError } from './ops.js';
 import { authRoutes } from './routes/auth.js';
 import { calendarRoutes } from './routes/calendars.js';
@@ -37,18 +43,45 @@ export interface AppDeps {
   live?: LiveHub;
   /** Email sender; created from the config by buildApp when not given. */
   mailer?: Mailer;
+  /** Webhook delivery worker; started by the server, not in tests (which deliver on demand). */
+  webhooks?: WebhookDispatcher;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   deps.live ??= new LiveHub();
   deps.mailer ??= createMailer(deps.config.smtpUrl, deps.config.mailFrom);
-  const app = Fastify({ logger: false, bodyLimit: 2 * 1024 * 1024 });
+  deps.webhooks ??= new WebhookDispatcher(deps.db, deps.config.webhookAllowPrivate);
+  const app = Fastify({ logger: false, bodyLimit: 2 * 1024 * 1024, trustProxy: deps.config.trustProxy });
   app.register(cookie);
   app.register(websocket);
   app.decorateRequest('user', null);
+  const keyLimit = new RateLimiter(deps.config.apiRateLimit);
+  const authLimit = new RateLimiter(deps.config.authRateLimit);
 
-  app.addHook('preHandler', async req => {
-    req.user = await userForToken(deps.db, req.cookies[SESSION_COOKIE]);
+  app.addHook('preHandler', async (req, reply) => {
+    const path = req.url.split('?')[0]!;
+    // sign-in and sign-up: limit guessing from one address
+    if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup')) {
+      const r = authLimit.hit(`ip:${req.ip}`);
+      if (!r.ok) { reply.header('retry-after', r.retryAfter); throw new ApiError(429, 'rate_limited'); }
+    }
+    const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '')?.[1];
+    if (!bearer) {
+      req.user = await userForToken(deps.db, req.cookies[SESSION_COOKIE]);
+      return;
+    }
+    // API key (spec 7.2): the owner's permissions, in one organisation, rate-limited
+    req.user = await userForApiKey(deps.db, bearer);
+    if (!req.user) throw new ApiError(401, 'invalid_api_key');
+    const r = keyLimit.hit(`key:${req.user.apiKey!.id}`);
+    reply.header('x-ratelimit-limit', keyLimit.limit);
+    if (!r.ok) { reply.header('retry-after', r.retryAfter); throw new ApiError(429, 'rate_limited'); }
+    reply.header('x-ratelimit-remaining', r.remaining);
+    if (req.user.apiKey!.scope === 'read' && req.method !== 'GET' && req.method !== 'HEAD') throw new ApiError(403, 'key_read_only');
+    // a key cannot sign in, make keys or organisations, or change the person's account
+    if (path.startsWith('/api/auth/') || path.startsWith('/api/me') || (req.method === 'POST' && path === '/api/orgs')) {
+      if (!(req.method === 'GET' && path === '/api/me')) throw new ApiError(403, 'not_with_api_key');
+    }
   });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -72,6 +105,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(portfolioRoutes(deps), { prefix: '/api' });
   app.register(commentRoutes(deps), { prefix: '/api' });
   app.register(notificationRoutes(deps), { prefix: '/api' });
+  app.register(integrationRoutes(deps), { prefix: '/api' });
+  app.get('/api/openapi.json', async () => openApi);
+  const docs = renderApiDocs();
+  app.get('/api/docs', async (_req, reply) => reply.type('text/html; charset=utf-8').send(docs));
   app.register(liveRoutes(deps), { prefix: '/api' });
 
   // production: serve the web app, and its index.html for any page route (client-side routing)
