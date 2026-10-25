@@ -1,12 +1,14 @@
 import { type Op, Tree, toIso } from '@wbs-master/engine';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { Icon, TopBar, Var, useToast } from '../ui.js';
 import { addChildOps, addSiblingOps, indentOps, moveOps, outdentOps, visibleItems } from './actions.js';
 import { ActivityPanel } from './ActivityPanel.js';
 import { BaselinesDialog } from './BaselinesDialog.js';
+import { safeFileName, saveBlob, writeWorkbook } from './excel.js';
+import { ImportDialog } from './ImportDialog.js';
 import { Inspector } from './Inspector.js';
 import { SummaryView } from './SummaryView.js';
 import { type EditResult, useProject } from './store.js';
@@ -63,6 +65,9 @@ export function ProjectPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [baselinesOpen, setBaselinesOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const navigate = useNavigate();
+  const i18n = useI18n();
   const focusAfter = useRef<string | null>(null);
 
   const rows = useMemo(() => visibleItems(items, maxLevel, collapsed), [items, maxLevel, collapsed]);
@@ -249,6 +254,17 @@ export function ProjectPage() {
               {store.isAdmin && <button onClick={() => store.baselines.compare(null)} title={t('backToLatest')} aria-label={t('backToLatest')}>×</button>}
             </span>
           )}
+          {store.canEdit && <button className="ib" onClick={() => setImportOpen(true)} title={t('importExcel')}>{Icon.importIcon}<span className="lbl-long">{t('importExcel')}</span></button>}
+          {/* the demo runs in a viewer that blocks downloads */}
+          {import.meta.env.MODE !== 'demo' && (
+            <button className="ib" title={t('exportExcel')} onClick={async () => {
+              const blob = await writeWorkbook({
+                projectId: data.project.id, name: data.project.name, items, computed, summary: data.summary, baselines: data.baselines, i18n,
+              });
+              saveBlob(blob, `${safeFileName(data.project.name)}.xlsx`);
+              toast(t('exported'));
+            }}>{Icon.exportIcon}<span className="lbl-long">{t('exportExcel')}</span></button>
+          )}
           {view !== 'summary' && <button className="ib" aria-pressed={activityOpen} onClick={() => setActivityOpen(o => !o)} title={t('activity')}>{Icon.history}<span className="lbl-long">{t('activity')}</span></button>}
           {store.isAdmin && <button className="ib" onClick={() => setSettingsOpen(true)} title={t('settings')}>{Icon.gear}<span className="lbl-long">{t('settings')}</span></button>}
         </div>
@@ -286,6 +302,11 @@ export function ProjectPage() {
       </main>
       {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} />}
       {baselinesOpen && <BaselinesDialog store={store} onClose={() => setBaselinesOpen(false)} />}
+      {importOpen && (
+        <ImportDialog orgId={data.project.orgId} project={{ id: data.project.id, name: data.project.name, items, canEdit: store.canEdit }}
+          applyToProject={edit} onClose={() => setImportOpen(false)}
+          onCreated={id => { setImportOpen(false); navigate(`/p/${id}`); }} />
+      )}
     </div>
   );
 }

@@ -28,7 +28,7 @@ await page.getByRole('heading', { name: 'Projects' }).waitFor();
 check(true, 'sign-up lands on the projects page');
 
 await page.getByLabel('Project name').fill('24 kV RMU development');
-await page.getByRole('button', { name: 'New project' }).click();
+await page.getByRole('button', { name: 'New project', exact: true }).click();
 await page.getByText('No items yet').waitFor();
 check(true, 'new project opens empty');
 

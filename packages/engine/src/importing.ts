@@ -36,6 +36,24 @@ export function parseDate(v: unknown, order: DateOrder = 'dmy'): IsoDate | null 
   return null;
 }
 
+/**
+ * Whether a sheet's text dates are day-first or month-first, judged by any part above 12
+ * (15/11/2026 can only be day-first). Null when every date could be read either way.
+ */
+export function guessDateOrder(rows: unknown[][]): DateOrder | null {
+  let dmy = 0, mdy = 0;
+  for (const row of rows) {
+    for (const v of row) {
+      if (typeof v !== 'string') continue;
+      const m = /^\s*(\d{1,2})[-/.](\d{1,2})[-/.]\d{2,4}/.exec(v);
+      if (!m) continue;
+      if (+m[1]! > 12 && +m[2]! <= 12) dmy++;
+      else if (+m[2]! > 12 && +m[1]! <= 12) mdy++;
+    }
+  }
+  return dmy > mdy ? 'dmy' : mdy > dmy ? 'mdy' : null;
+}
+
 /** 0–100 from 45, "45%", or a fraction 0.45. */
 export function parseProgress(v: unknown): number {
   if (v === '' || v == null) return 0;

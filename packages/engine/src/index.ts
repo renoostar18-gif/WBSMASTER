@@ -12,3 +12,4 @@ export * from './report.js';
 export * from './importing.js';
 export * from './ops.js';
 export * from './diff.js';
+export * from './workbook.js';

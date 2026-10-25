@@ -10,12 +10,12 @@ The product specification (requirements, business rules, data dictionary, Excel 
 
 | Path | What it is |
 | --- | --- |
-| `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing. Pure TypeScript with no dependencies; runs in the browser and on the server. |
+| `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing and the connected workbook (export, re-import, change preview). Pure TypeScript with no dependencies; runs in the browser and on the server. |
 | `apps/api` | HTTP API (Fastify + PostgreSQL): sign-up and sign-in, organisations and roles, plan limits, calendars, projects, WBS edits through the engine, baselines, summary text, activity history. |
 
 | `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 
-Coming next: Excel import/export, Portfolio view, comments, then `infra` (Terraform for Google Cloud Dammam).
+Coming next: Portfolio view and comments, then `infra` (Terraform for Google Cloud Dammam).
 
 ## Develop
 
@@ -36,9 +36,24 @@ Browser-only demo: `pnpm --filter @wbs-master/web build:demo` packs the web app 
 (`apps/web/dist-demo/wbs-master-demo.html`) where the API is simulated in the browser with the same
 engine, seeded with the 24 kV RMU example. Data stays in that browser.
 
-Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user, all views) and
-`node apps/web/e2e/collab.mjs` (two people editing the same project live). Set `CHROMIUM_PATH`
+Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user, all views),
+`node apps/web/e2e/collab.mjs` (two people editing the same project live) and
+`node apps/web/e2e/excel.mjs` (import a plain sheet, export, edit in Excel, re-import, undo). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
+
+## Excel
+
+Excel runs in the browser (ExcelJS, loaded only when used), so files never pass through the server
+as files; an import becomes ordinary editing operations.
+
+- **Import any sheet** (.xlsx, .xlsm, .csv): columns are matched by name in English or Arabic, and
+  levels come from a WBS code column, numbering in names (1.2 Design), or grouping columns such as
+  Phase (the app suggests one). Day-first or month-first dates, Excel date numbers, 85% or 0.85.
+  Add to the open project or create a new one. Old .xls files must be saved as .xlsx first.
+- **Export** gives the connected workbook: WBS (17 editable columns plus read-only results),
+  Summary, Baselines and a Read me, in the app's language and direction.
+- **Re-import** that workbook to bring Excel edits back: the app lists what changed, added and
+  removed before applying, and one Undo reverses it all.
 
 Production: `pnpm build`, then run `node apps/api/dist/server.js` with `WEB_DIST=apps/web/dist`;
 the API serves the web app and migrates the database on start.

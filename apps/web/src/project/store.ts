@@ -181,7 +181,8 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
         redoStack.current = [];
       }
       bump(x => x + 1);
-      send(ops);
+      // one undo step, sent in batches the API accepts (imports can be thousands of edits)
+      for (let k = 0; k < ops.length; k += 400) send(ops.slice(k, k + 400));
       return { ok: true, scheduled: r.scheduled.length, ignoredDeps: r.ignoredDeps };
     } catch (e) {
       return { ok: false, error: e instanceof OpError ? e.code : 'server_error', scheduled: 0, ignoredDeps: [] };

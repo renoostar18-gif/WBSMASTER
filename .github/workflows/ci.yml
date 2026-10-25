@@ -66,3 +66,6 @@ jobs:
       - name: Two-person live editing test
         working-directory: apps/web
         run: WEB_URL=http://localhost:3000 node e2e/collab.mjs
+      - name: Excel round-trip test
+        working-directory: apps/web
+        run: WEB_URL=http://localhost:3000 node e2e/excel.mjs

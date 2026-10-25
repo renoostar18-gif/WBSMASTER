@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../api.js';
 import { type MessageKey, useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
+import { ImportDialog } from '../project/ImportDialog.js';
 import { TopBar } from '../ui.js';
 
 interface ProjectRow { id: string; name: string; updatedAt: string; itemCount: number; role: string }
@@ -16,6 +17,7 @@ export function ProjectsPage() {
   const org = orgs.find(o => o.id === orgId);
   const [projects, setProjects] = useState<ProjectRow[] | null>(null);
   const [err, setErr] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!orgId) return;
@@ -57,6 +59,7 @@ export function ProjectsPage() {
           <form className="newp" onSubmit={create}>
             <input name="name" placeholder={t('projectName')} aria-label={t('projectName')} maxLength={200} />
             <button className="btn primary" type="submit">{t('newProject')}</button>
+            <button className="btn" type="button" onClick={() => setImportOpen(true)}>{t('newFromExcel')}</button>
           </form>
           {err && <div className="err" role="alert">{err}</div>}
           {projects && !projects.length && <p className="hint">{t('noProjects')}</p>}
@@ -70,6 +73,7 @@ export function ProjectsPage() {
           </div>
         </div>
       </div>
+      {importOpen && orgId && <ImportDialog orgId={orgId} onClose={() => setImportOpen(false)} onCreated={id => nav(`/p/${id}`)} />}
     </div>
   );
 }
