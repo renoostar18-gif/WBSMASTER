@@ -5,13 +5,16 @@ import { useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { Icon, TopBar, Var, useToast } from '../ui.js';
 import { addChildOps, addSiblingOps, indentOps, moveOps, outdentOps, visibleItems } from './actions.js';
+import { ActivityPanel } from './ActivityPanel.js';
+import { BaselinesDialog } from './BaselinesDialog.js';
 import { Inspector } from './Inspector.js';
+import { SummaryView } from './SummaryView.js';
 import { type EditResult, useProject } from './store.js';
 import { TableView } from './TableView.js';
 import { ChartView } from './ChartView.js';
 import { type GanttOptions, GanttView, type Scale } from './GanttView.js';
 
-type View = 'table' | 'chart' | 'gantt';
+type View = 'table' | 'chart' | 'gantt' | 'summary';
 
 /** A per-viewer preference kept in this browser (falls back to the default when storage is blocked). */
 function useLocal<T>(key: string, initial: T) {
@@ -58,9 +61,12 @@ export function ProjectPage() {
   const [collapsed, toggle] = useCollapsed(projectId);
   const [armedDelete, setArmedDelete] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [baselinesOpen, setBaselinesOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const focusAfter = useRef<string | null>(null);
 
   const rows = useMemo(() => visibleItems(items, maxLevel, collapsed), [items, maxLevel, collapsed]);
+  const codes = useMemo(() => new Map([...(computed?.items ?? new Map()).entries()].map(([id, i]) => [id, i.code as string])), [computed]);
   useEffect(() => { selectedRef.current = selected; store.shareSelection(selected); }, [selected, store.shareSelection]);
   // other people viewing (each person once), and which items they have selected
   const others = useMemo(() => {
@@ -124,6 +130,7 @@ export function ProjectPage() {
   // keyboard shortcuts (spec 3.3); in Arabic the indent arrows follow the reading direction
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (view === 'summary') return; // the summary has text fields, not WBS rows
       if (!store.canEdit && !['ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) return;
       const target = e.target as HTMLElement;
       const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName);
@@ -188,7 +195,7 @@ export function ProjectPage() {
       <div className="rail wrap">
         <div className="grp"><span className="lbl">{t('view')}</span>
           <div className="seg">
-            {(['table', 'chart', 'gantt'] as const).map(v => (
+            {(['table', 'chart', 'gantt', 'summary'] as const).map(v => (
               <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>{t(`view_${v}`)}</button>
             ))}
           </div>
@@ -220,7 +227,7 @@ export function ProjectPage() {
             <button aria-pressed={!maxLevel} onClick={() => setMaxLevel(0)}>{t('all')}</button>
           </div>
         </div>
-        {store.canEdit && (
+        {store.canEdit && view !== 'summary' && (
           <div className="grp">
             <button className="ib" onClick={() => addChild(sel?.id ?? null)} title={`${t('addChild')} (Tab)`}>{Icon.child}<span className="lbl-long">{t('addChild')}</span></button>
             <button className="ib" disabled={!sel} onClick={() => sel && addSibling(sel.id)} title={`${t('addSibling')} (Enter)`}>{Icon.sibling}<span className="lbl-long">{t('addSibling')}</span></button>
@@ -235,7 +242,16 @@ export function ProjectPage() {
             <button className="ib" disabled={!store.canRedo} onClick={store.redo} title={`${t('redo')} (Ctrl+Y)`} aria-label={t('redo')}>{Icon.redo}</button>
           </div>
         )}
-        {store.isAdmin && <button className="ib" onClick={() => setSettingsOpen(true)} title={t('settings')}>{Icon.gear}<span className="lbl-long">{t('settings')}</span></button>}
+        <div className="grp">
+          <button className="ib" onClick={() => setBaselinesOpen(true)} title={t('baselines')}>{Icon.baseline}<span className="lbl-long">{t('baselines')}</span></button>
+          {activeBaseline && (
+            <span className="base-chip">{t('comparingTo', { name: activeBaseline.name })}
+              {store.isAdmin && <button onClick={() => store.baselines.compare(null)} title={t('backToLatest')} aria-label={t('backToLatest')}>×</button>}
+            </span>
+          )}
+          {view !== 'summary' && <button className="ib" aria-pressed={activityOpen} onClick={() => setActivityOpen(o => !o)} title={t('activity')}>{Icon.history}<span className="lbl-long">{t('activity')}</span></button>}
+          {store.isAdmin && <button className="ib" onClick={() => setSettingsOpen(true)} title={t('settings')}>{Icon.gear}<span className="lbl-long">{t('settings')}</span></button>}
+        </div>
         <div className="summary">
           {t('summaryLine', { items: items.length, levels: depth, done: p.progress })}
           {p.plannedPct != null && <> {t('vsPlan', { pp: p.plannedPct })}</>}
@@ -261,10 +277,15 @@ export function ProjectPage() {
             <GanttView items={items} rows={rows} computed={computed} calendar={store.calendar} canEdit={store.canEdit} selected={selected}
               collapsed={collapsed} maxLevel={maxLevel} options={gantt} onSelect={setSelected} onToggle={toggle} onEdit={edit} othersByItem={othersByItem} />
           )}
+        
+          {view === 'summary' && <SummaryView store={store} computed={computed} maxLevel={maxLevel} />}
         </section>
-        <Inspector item={sel} items={items} computed={computed} canEdit={store.canEdit} onEdit={edit} />
+        {view !== 'summary' && (activityOpen
+          ? <ActivityPanel store={store} items={items} codes={codes} selected={selected} onClose={() => setActivityOpen(false)} />
+          : <Inspector item={sel} items={items} computed={computed} canEdit={store.canEdit} onEdit={edit} />)}
       </main>
       {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} />}
+      {baselinesOpen && <BaselinesDialog store={store} onClose={() => setBaselinesOpen(false)} />}
     </div>
   );
 }

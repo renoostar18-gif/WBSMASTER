@@ -16,6 +16,15 @@ export interface ProjectPayload {
   items: WbsItem[];
   baselines: Baseline[];
   calendar: CalendarDefinition;
+  summary: Summary;
+}
+
+/** Report text people write (spec 4.9). */
+export interface Summary { narrative: string; achievements: string; nextSteps: string; risks: string; decisions: string }
+
+export interface ActivityEntry {
+  id: number; itemId: string | null; action: string; field: string | null;
+  oldValue: unknown; newValue: unknown; at: string; actorId: string | null; actorName: string | null;
 }
 
 interface OpsResponse { version: number; items: WbsItem[]; scheduled: string[]; ignoredDeps: string[] }
@@ -209,8 +218,46 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
     }
   }, [projectId, load]);
 
+  /** Save summary text fields (only the ones given). */
+  const saveSummary = useCallback(async (patch: Partial<Summary>) => {
+    setData(d => (d ? { ...d, summary: { ...d.summary, ...patch } } : d));
+    setSave('saving');
+    try {
+      await api.put(`/projects/${projectId}/summary`, patch);
+      setSave('saved');
+    } catch (e) {
+      setSave(e instanceof ApiError && e.code === 'offline' ? 'offline' : 'error');
+    }
+  }, [projectId]);
+
+  /** Baseline actions (admins); the project is reloaded afterwards. Returns an error code or null. */
+  const baselineAction = useCallback(async (call: () => Promise<unknown>) => {
+    setSave('saving');
+    try {
+      await call();
+      await load();
+      setSave('saved');
+      return null;
+    } catch (e) {
+      setSave('error');
+      return e instanceof ApiError ? e.code : 'server_error';
+    }
+  }, [load]);
+  const baselines = useMemo(() => ({
+    save: (name: string, reason: string) => baselineAction(() => api.post(`/projects/${projectId}/baselines`, { name: name || undefined, reason })),
+    rename: (id: string, name: string) => baselineAction(() => api.patch(`/projects/${projectId}/baselines/${id}`, { name })),
+    restore: (id: string) => baselineAction(() => api.post(`/projects/${projectId}/baselines/${id}/restore`)),
+    remove: (id: string) => baselineAction(() => api.del(`/projects/${projectId}/baselines/${id}`)),
+    compare: (id: string | null) => baselineAction(() => api.patch(`/projects/${projectId}`, { activeBaselineId: id })),
+  }), [projectId, baselineAction]);
+
+  const activity = useCallback(
+    (before?: number, itemId?: string) => api.get<{ activity: ActivityEntry[] }>(
+      `/projects/${projectId}/activity?${new URLSearchParams({ ...(before ? { before: String(before) } : {}), ...(itemId ? { itemId } : {}) })}`),
+    [projectId]);
+
   return {
-    data, loadError, save, items, model, computed, calendar,
+    data, loadError, save, items, model, computed, calendar, saveSummary, baselines, activity,
     run, undo, redo, updateProject, reload: load, viewers, shareSelection,
     canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0,
     canEdit: data ? data.role === 'admin' || data.role === 'editor' : false,

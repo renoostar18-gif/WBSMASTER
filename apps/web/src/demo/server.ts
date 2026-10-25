@@ -5,13 +5,15 @@
  */
 import {
   type Baseline, type CalendarDefinition, DEFAULT_SETTINGS, type Op, OpError, type ProjectSettings, SAUDI_WEEK,
-  type WbsItem, WorkCalendar, applyOps, blankItem, saudiHolidays, toDay, todayDay, toIso,
+  type WbsItem, WorkCalendar, applyOps, blankItem, deleteBaseline, renameBaseline, restoreBaseline, saudiHolidays, saveBaseline,
+  toDay, todayDay, toIso,
 } from '@wbs-master/engine';
 import { ApiError } from '../api.js';
 
 interface DemoProject {
   id: string; name: string; version: number; updatedAt: string;
   settings: ProjectSettings; items: WbsItem[]; baselines: Baseline[];
+  summary?: Record<string, string>;
 }
 interface DemoState {
   signedIn: boolean;
@@ -136,6 +138,28 @@ export async function demoRequest<T>(method: string, url: string, body: unknown)
     return out({ id: p.id });
   }
 
+  const EMPTY_SUMMARY = { narrative: '', achievements: '', nextSteps: '', risks: '', decisions: '' };
+  const bm = /^\/projects\/([^/]+)\/(summary|activity|baselines)(?:\/([^/]+))?(\/restore)?(?:\?.*)?$/.exec(url);
+  if (bm) {
+    const p = s.projects.find(x => x.id === bm[1]);
+    if (!p) throw notFound();
+    const asProject = () => ({ id: p.id, name: p.name, items: p.items, baselines: p.baselines, settings: p.settings });
+    const apply = (next: ReturnType<typeof asProject>) => { p.items = next.items; p.baselines = next.baselines; p.settings = next.settings; p.version++; };
+    if (bm[2] === 'activity') return out({ activity: [] }); // the demo keeps no history
+    if (bm[2] === 'summary' && method === 'PUT') { p.summary = { ...EMPTY_SUMMARY, ...p.summary, ...(b as Record<string, string>) }; return out({ ok: true }); }
+    if (bm[2] === 'baselines' && method === 'POST' && !bm[3]) {
+      const r = saveBaseline(asProject(), { name: b.name as string | undefined, reason: b.reason as string | undefined, today: todayDay() });
+      if (typeof r === 'string') throw new ApiError(400, r);
+      r.baselines = r.baselines.map(x => (p.baselines.some(y => y.id === x.id) ? x : { ...x, id: uuid() }));
+      apply(r);
+      return out({ saved: r.baselines.slice(-1).map(x => x.name) });
+    }
+    if (bm[2] === 'baselines' && bm[3] && bm[4] && method === 'POST') { apply(restoreBaseline(asProject(), bm[3])); return out({ ok: true }); }
+    if (bm[2] === 'baselines' && bm[3] && method === 'PATCH') { apply(renameBaseline(asProject(), bm[3], String(b.name ?? ''))); return out({ ok: true }); }
+    if (bm[2] === 'baselines' && bm[3] && method === 'DELETE') { apply(deleteBaseline(asProject(), bm[3])); return out({ ok: true }); }
+    throw notFound();
+  }
+
   m = /^\/projects\/([^/]+)(\/ops)?$/.exec(url);
   const p = m ? s.projects.find(x => x.id === m![1]) : undefined;
   if (!m || !p) throw notFound();
@@ -145,6 +169,7 @@ export async function demoRequest<T>(method: string, url: string, body: unknown)
     return out({
       project: { id: p.id, orgId: s.org.id, name: p.name, version: p.version, calendarId: null, locale: 'en', archived: false, settings: p.settings },
       role: 'admin', items: p.items, baselines: p.baselines, calendar: calendar(),
+      summary: { ...EMPTY_SUMMARY, ...p.summary },
     });
   }
   if (!m[2] && method === 'PATCH') {

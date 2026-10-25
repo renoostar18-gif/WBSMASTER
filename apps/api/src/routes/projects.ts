@@ -323,6 +323,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
          next_steps = coalesce($4, project_summaries.next_steps), risks = coalesce($5, project_summaries.risks),
          decisions = coalesce($6, project_summaries.decisions), updated_at = now()`,
       [req.params.projectId, body.narrative ?? null, body.achievements ?? null, body.nextSteps ?? null, body.risks ?? null, body.decisions ?? null]);
+    await announce(req.params.projectId, user, [], true, clientOf(req));
     return { ok: true };
   });
 

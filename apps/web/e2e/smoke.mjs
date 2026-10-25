@@ -73,7 +73,7 @@ await deps.press('Enter');
 const elecForecastFinish = row('Electrical design').locator('input[type=date]').nth(3);
 await elecForecastFinish.fill('2026-10-25');
 await elecForecastFinish.press('Enter');
-await page.getByText('linked items moved').waitFor();
+await page.getByText(/linked items? moved/).waitFor();
 check(await row('Mechanical design').locator('input[type=date]').nth(2).inputValue() === '2026-10-26', 'auto-schedule moves the successor to Monday 26 Oct');
 check(await row('Mechanical design').locator('input[type=date]').nth(3).inputValue() === '2026-11-01', '…keeping 5 working days (finish Sunday 1 Nov)');
 check((await row('Electrical design').locator('.var').innerText()).trim() === '+1d', 'variance is +1 working day');
@@ -150,6 +150,45 @@ await page.getByRole('button', { name: 'Chart' }).click();
 await shot('4-chart');
 await page.getByRole('button', { name: 'Table' }).click();
 
+// Summary: write the narrative from the data, fill the risks, and check both are saved
+await page.getByRole('button', { name: 'Summary', exact: true }).click();
+await page.getByRole('heading', { name: '24 kV RMU development' }).waitFor();
+await page.getByRole('button', { name: 'Write from WBS data' }).click();
+await page.waitForFunction(() => [...document.querySelectorAll('textarea')].some(t => t.value.includes('24 kV RMU development is')));
+check(true, 'the summary paragraph is written from the WBS data');
+await page.getByRole('button', { name: 'Fill from WBS' }).nth(2).click();
+await page.waitForTimeout(300);
+const risks = await page.locator('textarea').nth(3).inputValue();
+check(risks.includes('Mechanical design'), 'risks are filled from delayed and at-risk items');
+await shot('7-summary');
+
+// Baselines: save one with a reason (forecast becomes the plan), then compare against the original
+await page.getByRole('button', { name: 'Baselines' }).click();
+await page.getByLabel('Reason (shown in reports)').fill('Supplier delay accepted');
+await page.getByRole('button', { name: 'Save a new baseline from the current forecast' }).click();
+await page.getByText('Baseline saved').waitFor();
+check(await page.locator('.bl-row').count() === 3, 'saving a baseline keeps the original too (latest plan + 2 baselines)');
+// choosing a baseline saves first, then the radio button follows
+await page.locator('.bl-row', { hasText: 'Original baseline' }).locator('input[type=radio]').click();
+await page.locator('.base-chip').waitFor();
+await page.getByRole('button', { name: 'Close' }).click();
+check(await page.locator('.base-chip').innerText().then(x => x.includes('Original baseline')), 'the toolbar shows which baseline is being compared');
+check(await page.getByText('Supplier delay accepted').count() >= 1, 'the baseline reason appears in the baseline history');
+await page.reload();
+await page.getByRole('heading', { name: '24 kV RMU development' }).waitFor();
+check(await page.locator('textarea').first().inputValue().then(v => v.includes('24 kV RMU development is')), 'summary text is saved on the server');
+await page.locator('.base-chip button').click();
+await page.waitForTimeout(400);
+
+// Activity history
+await page.getByRole('button', { name: 'Table' }).click();
+await page.getByRole('button', { name: 'Activity' }).click();
+await page.locator('.alist li').first().waitFor();
+const acts = await page.locator('.alist li').allInnerTexts();
+check(acts.some(a => a.includes('saved the baseline')) && acts.some(a => a.includes('made') && a.includes('wait for')), 'activity lists the baseline save and the link');
+await shot('8-activity');
+await page.getByRole('button', { name: 'Activity' }).click();
+
 // Arabic, right to left
 await page.getByRole('button', { name: 'العربية' }).click();
 check(await page.evaluate(() => document.documentElement.dir) === 'rtl', 'Arabic switches the page to right-to-left');
@@ -159,6 +198,9 @@ await shot('2-arabic');
 await page.getByRole('button', { name: 'جانت' }).click();
 await page.locator('.g-row').first().waitFor();
 await shot('5-gantt-arabic');
+await page.getByRole('button', { name: 'الملخص' }).click();
+await page.getByText('الملخص التنفيذي').first().waitFor();
+await shot('9-summary-arabic');
 await page.getByRole('button', { name: 'جدول' }).click();
 await page.getByRole('button', { name: 'English' }).click();
 

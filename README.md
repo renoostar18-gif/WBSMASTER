@@ -13,9 +13,9 @@ The product specification (requirements, business rules, data dictionary, Excel 
 | `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing. Pure TypeScript with no dependencies; runs in the browser and on the server. |
 | `apps/api` | HTTP API (Fastify + PostgreSQL): sign-up and sign-in, organisations and roles, plan limits, calendars, projects, WBS edits through the engine, baselines, summary text, activity history. |
 
-| `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart and Gantt views, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
+| `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 
-Coming next: Summary and Portfolio views, baselines screen, Excel import/export, then `infra` (Terraform for Google Cloud Dammam).
+Coming next: Excel import/export, Portfolio view, comments, then `infra` (Terraform for Google Cloud Dammam).
 
 ## Develop
 
