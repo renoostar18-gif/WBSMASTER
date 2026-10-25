@@ -145,6 +145,35 @@ resource "google_secret_manager_secret_version" "database_url" {
   secret_data = "postgres://${google_sql_user.app.name}:${random_password.db.result}@${google_sql_database_instance.db.private_ip_address}:5432/${google_sql_database.app.name}?sslmode=no-verify"
 }
 
+# encrypts secrets the app keeps in its database (SSO client secrets)
+resource "random_password" "secret_key" {
+  length  = 48
+  special = false
+}
+
+resource "google_secret_manager_secret" "secret_key" {
+  secret_id = "${local.name}-secret-key"
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_secret_manager_secret_version" "secret_key" {
+  secret      = google_secret_manager_secret.secret_key.id
+  secret_data = random_password.secret_key.result
+}
+
+resource "google_secret_manager_secret_iam_member" "app_secret_key" {
+  secret_id = google_secret_manager_secret.secret_key.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.app.email}"
+}
+
 resource "google_secret_manager_secret" "smtp_url" {
   count     = local.smtp ? 1 : 0
   secret_id = "${local.name}-smtp-url"
@@ -272,6 +301,15 @@ resource "google_cloud_run_v2_service" "app" {
           }
         }
       }
+      env {
+        name = "SECRET_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.secret_key.secret_id
+            version = "latest"
+          }
+        }
+      }
       dynamic "env" {
         for_each = local.smtp ? [1] : []
         content {
@@ -305,7 +343,10 @@ resource "google_cloud_run_v2_service" "app" {
     ignore_changes = [template[0].containers[0].image, client, client_version]
   }
 
-  depends_on = [google_secret_manager_secret_version.database_url, google_secret_manager_secret_iam_member.app_database_url]
+  depends_on = [
+    google_secret_manager_secret_version.database_url, google_secret_manager_secret_iam_member.app_database_url,
+    google_secret_manager_secret_version.secret_key, google_secret_manager_secret_iam_member.app_secret_key,
+  ]
 }
 
 # the daily notification digest (spec 7.1)
@@ -340,6 +381,15 @@ resource "google_cloud_run_v2_job" "digest" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.database_url.secret_id
+              version = "latest"
+            }
+          }
+        }
+        env {
+          name = "SECRET_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.secret_key.secret_id
               version = "latest"
             }
           }

@@ -76,6 +76,8 @@ Then:
 
 - **Database:** no public address; connections are encrypted. The password is generated and kept in
   Secret Manager (and in the Terraform state, which is why the state bucket must stay private).
+- **`SECRET_KEY`:** generated the same way. It encrypts what the app keeps in its database, such as
+  organisations' single sign-on client secrets. Changing it makes those unreadable, so keep it.
 - **Cloud Run:** accepts traffic only from the load balancer, so the firewall rules always apply.
   They block SQL injection and cross-site scripting patterns, and allow at most 1,200 requests a
   minute per address. The app adds its own limits per API key and for sign-in.
