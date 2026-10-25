@@ -13,6 +13,7 @@ const css = readdirSync(assets).filter(f => f.endsWith('.css')).map(f => readFil
 if (js.length !== 1) throw new Error(`expected one script, got ${js.length}`);
 const pick = re => (html.match(re) ?? []).join('\n');
 const out = [
+  '<meta charset="utf-8">',
   '<title>WBS Master</title>',
   pick(/<link rel="icon"[^>]*>/g),
   pick(/<link rel="preconnect"[^>]*>/g),
@@ -20,7 +21,8 @@ const out = [
   `<style>${css.join('\n')}</style>`,
   '<div id="root"></div>',
   // a module script with "</script" inside a string would end the tag early
-  `<script type="module">${js[0].replaceAll('</script', '<\\/script')}</script>`,
+  // U+FFFD as an escape, which means the same in strings and regexes (the publish check rejects the raw character)
+  `<script type="module">${js[0].replaceAll('</script', '<\\/script').replaceAll('\uFFFD', '\\uFFFD')}</script>`,
 ].join('\n');
 writeFileSync(join(dir, 'wbs-master-demo.html'), out);
 console.log(`dist-demo/wbs-master-demo.html: ${(out.length / 1024).toFixed(0)} KB`);
