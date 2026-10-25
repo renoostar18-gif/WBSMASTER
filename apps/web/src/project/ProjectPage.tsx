@@ -1,12 +1,14 @@
 import { type Op, Tree, toIso } from '@wbs-master/engine';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { Icon, TopBar, Var, useToast } from '../ui.js';
 import { addChildOps, addSiblingOps, indentOps, moveOps, outdentOps, visibleItems } from './actions.js';
 import { ActivityPanel } from './ActivityPanel.js';
 import { BaselinesDialog } from './BaselinesDialog.js';
+import { useComments } from './comments.js';
+import { CommentsPanel } from './CommentsPanel.js';
 import { safeFileName, saveBlob, writeWorkbook } from './excel.js';
 import { ImportDialog } from './ImportDialog.js';
 import { Inspector } from './Inspector.js';
@@ -64,7 +66,16 @@ export function ProjectPage() {
   const [armedDelete, setArmedDelete] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [baselinesOpen, setBaselinesOpen] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
+  const [panel, setPanel] = useState<'details' | 'activity' | 'comments'>('details');
+  const [commentScope, setCommentScope] = useState<'all' | 'item'>('all');
+  const comments = useComments(projectId, store.commentsTick);
+  const location = useLocation();
+  // opened from the portfolio: start on the Summary view
+  useEffect(() => {
+    const v = (location.state as { view?: View } | null)?.view;
+    if (v) setView(v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
   const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const i18n = useI18n();
@@ -265,7 +276,12 @@ export function ProjectPage() {
               toast(t('exported'));
             }}>{Icon.exportIcon}<span className="lbl-long">{t('exportExcel')}</span></button>
           )}
-          {view !== 'summary' && <button className="ib" aria-pressed={activityOpen} onClick={() => setActivityOpen(o => !o)} title={t('activity')}>{Icon.history}<span className="lbl-long">{t('activity')}</span></button>}
+          {view !== 'summary' && (
+            <button className="ib" aria-pressed={panel === 'comments'} onClick={() => { setCommentScope('all'); setPanel(x => (x === 'comments' ? 'details' : 'comments')); }} title={t('comments')}>
+              {Icon.comment}<span className="lbl-long">{t('comments')}</span>{comments.open > 0 && <span className="count" aria-label={t('openThreadsN', { n: comments.open })}>{comments.open}</span>}
+            </button>
+          )}
+          {view !== 'summary' && <button className="ib" aria-pressed={panel === 'activity'} onClick={() => setPanel(x => (x === 'activity' ? 'details' : 'activity'))} title={t('activity')}>{Icon.history}<span className="lbl-long">{t('activity')}</span></button>}
           {store.isAdmin && <button className="ib" onClick={() => setSettingsOpen(true)} title={t('settings')}>{Icon.gear}<span className="lbl-long">{t('settings')}</span></button>}
         </div>
         <div className="summary">
@@ -296,9 +312,16 @@ export function ProjectPage() {
         
           {view === 'summary' && <SummaryView store={store} computed={computed} maxLevel={maxLevel} />}
         </section>
-        {view !== 'summary' && (activityOpen
-          ? <ActivityPanel store={store} items={items} codes={codes} selected={selected} onClose={() => setActivityOpen(false)} />
-          : <Inspector item={sel} items={items} computed={computed} canEdit={store.canEdit} onEdit={edit} />)}
+        {view !== 'summary' && panel === 'activity' && <ActivityPanel store={store} items={items} codes={codes} selected={selected} onClose={() => setPanel('details')} />}
+        {view !== 'summary' && panel === 'comments' && (
+          <CommentsPanel store={comments} items={items} codes={codes} selected={selected} meId={me?.user.id ?? null} isAdmin={store.isAdmin}
+            canComment={store.canComment} scope={commentScope} onScope={setCommentScope} onSelectItem={setSelected} onClose={() => setPanel('details')} />
+        )}
+        {view !== 'summary' && panel === 'details' && (
+          <Inspector item={sel} items={items} computed={computed} canEdit={store.canEdit} onEdit={edit}
+            openComments={sel ? comments.openByItem.get(sel.id) ?? 0 : 0}
+            onComments={() => { setCommentScope('item'); setPanel('comments'); }} />
+        )}
       </main>
       {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} />}
       {baselinesOpen && <BaselinesDialog store={store} onClose={() => setBaselinesOpen(false)} />}

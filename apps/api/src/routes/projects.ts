@@ -4,14 +4,14 @@ import {
 } from '@wbs-master/engine';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { type AppDeps, parse, requireUser } from '../app.js';
+import { type AppDeps, clientOf, parse, requireUser } from '../app.js';
 import { type Tx, tx } from '../db.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
 import { type Op, applyOps, opsBody } from '../ops.js';
 import { type ProjectRole, orgAccess, projectAccess } from '../permissions.js';
 import { PLANS } from '../plans.js';
 import { saveItems } from '../save.js';
-import { loadProject, serializeComputed } from '../store.js';
+import { loadProject, recordSnapshot, serializeComputed } from '../store.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => toDay(s) != null, 'invalid date');
 const projectRole = z.enum(['admin', 'editor', 'commenter', 'viewer']);
@@ -38,12 +38,6 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   const today = () => todayDay(deps.today?.() ?? new Date());
 
   /** Tell open pages a new version was saved (bumping the version when the change did not). */
-  /** The browser tab that made the change (header x-wbs-client), so that tab can skip its own announcement. */
-  const clientOf = (req: { headers: Record<string, unknown> }) => {
-    const v = req.headers['x-wbs-client'];
-    return typeof v === 'string' ? v.slice(0, 64) : null;
-  };
-
   async function announce(projectId: string, user: { id: string; name: string }, items: string[] = [], bump = false, clientId: string | null = null) {
     const r = bump
       ? await deps.db.query<{ version: number }>('update projects set version = version + 1, updated_at = now() where id = $1 returning version', [projectId])
@@ -194,6 +188,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     deps.live?.changed(req.params.projectId, result.saved.version, user,
       [...result.saved.added, ...result.saved.updated, ...result.saved.removed], clientOf(req));
     const computed = computeProject(result.r.project, { calendar: result.cal, today: today() });
+    await recordSnapshot(deps.db, req.params.projectId, computed, today());
     return {
       version: result.saved.version,
       created: result.r.created,

@@ -6,8 +6,10 @@ import { Pill, Var } from '../ui.js';
 const STATUSES: Status[] = ['auto', 'not_started', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 
 /** Details of the selected item, as in the prototype's inspector. */
-export function Inspector({ item, items, computed, canEdit, onEdit }: {
+export function Inspector({ item, items, computed, canEdit, onEdit, openComments, onComments }: {
   item: WbsItem | null; items: WbsItem[]; computed: ComputedProject; canEdit: boolean; onEdit: (ops: Op[]) => void;
+  /** Open comment threads on this item, and how to show them. */
+  openComments: number; onComments: () => void;
 }) {
   const { t, reason, date } = useI18n();
   const codes = useMemo(() => new Map([...computed.items].map(([id, i]) => [id, i.code])), [computed]);
@@ -37,6 +39,9 @@ export function Inspector({ item, items, computed, canEdit, onEdit }: {
         <Pill health={i.health} />
         {computed.critical.has(item.id) && <span className="cp" title={t('critical')}>CP</span>}
         {i.milestone && <span className="badge">{t('milestone')}</span>}
+        <button className="btn sm" style={{ marginInlineStart: 'auto' }} onClick={onComments}>
+          {openComments ? t('openThreadsN', { n: openComments }) : t('comments')}
+        </button>
       </div>
       <div className="hint">{reason(i.reason)}</div>
       <label className="fld">

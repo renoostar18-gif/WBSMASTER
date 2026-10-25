@@ -15,7 +15,7 @@ The product specification (requirements, business rules, data dictionary, Excel 
 
 | `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 
-Coming next: Portfolio view and comments, then `infra` (Terraform for Google Cloud Dammam).
+Coming next: `infra` (Terraform for Google Cloud Dammam), then notifications, single sign-on and billing.
 
 ## Develop
 
@@ -34,12 +34,30 @@ pnpm --filter @wbs-master/web dev        # web app on http://localhost:5173 (pro
 
 Browser-only demo: `pnpm --filter @wbs-master/web build:demo` packs the web app into one HTML file
 (`apps/web/dist-demo/wbs-master-demo.html`) where the API is simulated in the browser with the same
-engine, seeded with the 24 kV RMU example. Data stays in that browser.
+engine, seeded with three example projects (the 24 kV RMU, a substation upgrade and an ERP roll-out) and a
+comment thread. Data stays in that browser.
 
 Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user, all views),
-`node apps/web/e2e/collab.mjs` (two people editing the same project live) and
-`node apps/web/e2e/excel.mjs` (import a plain sheet, export, edit in Excel, re-import, undo). Set `CHROMIUM_PATH`
+`node apps/web/e2e/collab.mjs` (two people editing the same project live),
+`node apps/web/e2e/excel.mjs` (import a plain sheet, export, edit in Excel, re-import, undo) and
+`node apps/web/e2e/portfolio.mjs` (portfolio views; comments, mentions and resolving between two people;
+it also needs `DATABASE_URL`, to put the test organisation on the Team plan). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
+
+## Portfolio and comments
+
+- **Portfolio** (Team and Business plans) shows every active project the person can see, worst first:
+  Delayed, At risk, On track, then the largest finish slip. *Executives* gives headline figures,
+  decisions and risks (suggested from the critical path until people write their own), a roadmap of
+  plan against forecast, the trend of each project's finish slip, and milestones in the next 60 days.
+  *Project team* lists overdue work, work due or starting in the next 14, 30 or 60 days, early warnings
+  (waiting for late work, late start, on hold, 25+ points behind plan) and workload per owner. Both
+  copy as plain text for email or Teams. The trend is one point per project per day, saved when the
+  project changes or the portfolio is opened.
+- **Comments** are threads on an item or on the whole project. Typing `@` suggests the people who can
+  see the project; replies reopen a resolved thread; "Open threads only" filters the rest out.
+  Commenters can comment without being able to edit, viewers can read only, and everyone viewing the
+  project sees new comments without reloading.
 
 ## Excel
 
@@ -73,6 +91,8 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | Sharing | `GET /projects/:id/members`, `PUT/DELETE /projects/:id/members/:userId` |
 | Baselines | `POST /projects/:id/baselines`, `PATCH/DELETE /projects/:id/baselines/:bid`, `POST .../:bid/restore` |
 | Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` |
+| Portfolio | `GET /orgs/:orgId/portfolio` (`?asOf=YYYY-MM-DD` for one status date across projects); Team and Business plans |
+| Comments | `GET/POST /projects/:id/comments`, `PATCH/DELETE /projects/:id/comments/:cid`, `POST .../:cid/resolve`, `GET /projects/:id/people` (who can be mentioned) |
 | Live | WebSocket `GET /projects/:id/live`: `presence` (who is viewing, what each has selected) and `changed` (a new version was saved) messages; send `{ "type": "select", "itemId": … }` to share a selection. One API process holds the connections; several instances will need Redis pub/sub. |
 
 `GET /projects/:id` returns the stored project plus `computed`: codes, health, variance, roll-ups and the critical path from the engine.

@@ -14,6 +14,8 @@ import { authRoutes } from './routes/auth.js';
 import { calendarRoutes } from './routes/calendars.js';
 import { orgRoutes } from './routes/orgs.js';
 import { liveRoutes } from './routes/live.js';
+import { commentRoutes } from './routes/comments.js';
+import { portfolioRoutes } from './routes/portfolio.js';
 import { projectRoutes } from './routes/projects.js';
 
 export const SESSION_COOKIE = 'wbs_session';
@@ -62,6 +64,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(orgRoutes(deps), { prefix: '/api' });
   app.register(calendarRoutes(deps), { prefix: '/api' });
   app.register(projectRoutes(deps), { prefix: '/api' });
+  app.register(portfolioRoutes(deps), { prefix: '/api' });
+  app.register(commentRoutes(deps), { prefix: '/api' });
   app.register(liveRoutes(deps), { prefix: '/api' });
 
   // production: serve the web app, and its index.html for any page route (client-side routing)
@@ -82,6 +86,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 export function requireUser(req: FastifyRequest): SessionUser {
   if (!req.user) throw new ApiError(401, 'not_signed_in');
   return req.user;
+}
+
+/** The browser tab that made a change (header x-wbs-client), so that tab can skip its own live announcement. */
+export function clientOf(req: { headers: Record<string, unknown> }): string | null {
+  const v = req.headers['x-wbs-client'];
+  return typeof v === 'string' ? v.slice(0, 64) : null;
 }
 
 export function parse<T>(schema: ZodType<T>, data: unknown): T {

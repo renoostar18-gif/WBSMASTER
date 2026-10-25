@@ -4,7 +4,7 @@ import { ApiError, api } from '../api.js';
 import { type MessageKey, useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { ImportDialog } from '../project/ImportDialog.js';
-import { TopBar } from '../ui.js';
+import { Icon, TopBar } from '../ui.js';
 
 interface ProjectRow { id: string; name: string; updatedAt: string; itemCount: number; role: string }
 
@@ -55,6 +55,7 @@ export function ProjectsPage() {
             <h1>{t('projects')}</h1>
             {org && <span className="crumb">{org.name}</span>}
             {org && <span className="badge">{t(`plan_${org.plan}` as MessageKey)}</span>}
+            {org && <Link className="btn" to={`/portfolio/${org.id}`} style={{ marginInlineStart: 'auto' }}>{Icon.portfolio} {t('portfolio')}</Link>}
           </div>
           <form className="newp" onSubmit={create}>
             <input name="name" placeholder={t('projectName')} aria-label={t('projectName')} maxLength={200} />
