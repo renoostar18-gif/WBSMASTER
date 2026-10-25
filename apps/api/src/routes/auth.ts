@@ -5,6 +5,7 @@ import { type AppDeps, SESSION_COOKIE, parse, requireUser, setSessionCookie } fr
 import { createSession, deleteSession, hashPassword, verifyPassword } from '../auth.js';
 import { type Tx, tx } from '../db.js';
 import { ApiError } from '../errors.js';
+import { requireSsoFor } from './sso.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(10, 'password_too_short').max(200);
@@ -39,6 +40,7 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
       organisation: z.string().trim().min(1).max(200).optional(),
       locale: z.enum(['en', 'ar']).optional(),
     }), req.body);
+    await requireSsoFor(deps.db, body.email);
     const out = await tx(deps.db, async c => {
       const exists = await c.query('select 1 from users where lower(email) = $1', [body.email]);
       if (exists.rowCount) throw new ApiError(409, 'email_taken');
@@ -57,6 +59,7 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
 
   app.post('/auth/login', async (req, reply) => {
     const body = parse(z.object({ email, password: z.string().max(200) }), req.body);
+    await requireSsoFor(deps.db, body.email);
     const r = await deps.db.query<{ id: string; password_hash: string | null; name: string }>(
       'select id, password_hash, name from users where lower(email) = $1', [body.email]);
     const u = r.rows[0];

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { buildApp } from '../src/app.js';
+import { type AppDeps, buildApp } from '../src/app.js';
 import { type Config, loadConfig } from '../src/config.js';
 import { type Db, createDb } from '../src/db.js';
 import { LogMailer } from '../src/mailer.js';
@@ -18,12 +18,12 @@ export interface TestApp {
 }
 
 /** A fresh, empty, migrated database and an app bound to it. */
-export async function startApp(config: Partial<Config> = {}): Promise<TestApp> {
+export async function startApp(config: Partial<Config> = {}, deps: Partial<AppDeps> = {}): Promise<TestApp> {
   const db = createDb(TEST_DB);
   await db.query('drop schema public cascade; create schema public;');
   await migrate(db);
   const mail = new LogMailer(true);
-  const app = buildApp({ db, config: { ...loadConfig(), databaseUrl: TEST_DB, appUrl: 'https://app.example', authRateLimit: 1000, ...config }, today: () => TODAY, mailer: mail });
+  const app = buildApp({ db, config: { ...loadConfig(), databaseUrl: TEST_DB, appUrl: 'https://app.example', authRateLimit: 1000, ...config }, today: () => TODAY, mailer: mail, ...deps });
   await app.ready();
   return { app, db, mail, close: async () => { await app.close(); await db.end(); } };
 }

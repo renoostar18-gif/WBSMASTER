@@ -4,6 +4,7 @@ import { ApiError, api } from '../api.js';
 import { type MessageKey, useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { TopBar, useToast } from '../ui.js';
+import { SsoSettings } from './SsoSettings.js';
 
 interface ApiKey { id: string; name: string; prefix: string; scope: 'read' | 'write'; orgId: string; orgName: string; createdAt: string; lastUsedAt: string | null }
 interface Webhook {
@@ -176,12 +177,13 @@ export function SettingsPage() {
       <TopBar><Link className="btn" to="/">{t('projects')}</Link></TopBar>
       <div className="view">
         <div className="rep">
-          <div className="rep-head"><div><div className="eyebrow">{t('accountSettings')}</div><h1>{t('integrations')}</h1></div></div>
+          <div className="rep-head"><div><h1>{t('accountSettings')}</h1></div></div>
           <ApiKeys orgs={orgs} />
           {admin.map(o => (
             <div key={o.id}>
               {admin.length > 1 && <h3 className="org-h" dir="auto">{o.name}</h3>}
               <Webhooks orgId={o.id} />
+              {o.plan === 'business' && <SsoSettings orgId={o.id} />}
             </div>
           ))}
         </div>

@@ -15,6 +15,7 @@ import { LiveHub } from './live.js';
 import { type Mailer, createMailer } from './mailer.js';
 import { RateLimiter } from './ratelimit.js';
 import { integrationRoutes } from './routes/integrations.js';
+import { ssoRoutes } from './routes/sso.js';
 import { WebhookDispatcher } from './webhooks.js';
 import { OpError } from './ops.js';
 import { authRoutes } from './routes/auth.js';
@@ -43,6 +44,8 @@ export interface AppDeps {
   live?: LiveHub;
   /** Email sender; created from the config by buildApp when not given. */
   mailer?: Mailer;
+  /** DNS TXT lookup for SSO domain verification; tests replace it. */
+  resolveTxt?: (name: string) => Promise<string[]>;
   /** Webhook delivery worker; started by the server, not in tests (which deliver on demand). */
   webhooks?: WebhookDispatcher;
 }
@@ -61,7 +64,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.addHook('preHandler', async (req, reply) => {
     const path = req.url.split('?')[0]!;
     // sign-in and sign-up: limit guessing from one address
-    if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup')) {
+    if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup' || path === '/api/auth/sso/start')) {
       const r = authLimit.hit(`ip:${req.ip}`);
       if (!r.ok) { reply.header('retry-after', r.retryAfter); throw new ApiError(429, 'rate_limited'); }
     }
@@ -106,6 +109,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(commentRoutes(deps), { prefix: '/api' });
   app.register(notificationRoutes(deps), { prefix: '/api' });
   app.register(integrationRoutes(deps), { prefix: '/api' });
+  app.register(ssoRoutes(deps), { prefix: '/api' });
   app.get('/api/openapi.json', async () => openApi);
   const docs = renderApiDocs();
   app.get('/api/docs', async (_req, reply) => reply.type('text/html; charset=utf-8').send(docs));

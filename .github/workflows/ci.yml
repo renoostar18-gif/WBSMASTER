@@ -57,7 +57,7 @@ jobs:
       - name: Start the app (API serving the built web app)
         working-directory: apps/api
         run: |
-          PORT=3000 WEB_DIST=../web/dist node dist/server.js > /tmp/api.log 2>&1 &
+          PORT=3000 WEB_DIST=../web/dist APP_URL=http://localhost:3000 SSO_ALLOW_HTTP=1 node dist/server.js > /tmp/api.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:3000/api/health && exit 0; sleep 1; done
           cat /tmp/api.log; exit 1
       - name: Browser smoke test
@@ -78,3 +78,6 @@ jobs:
       - name: API keys and webhooks test
         working-directory: apps/web
         run: WEB_URL=http://localhost:3000 node e2e/integrations.mjs
+      - name: Single sign-on test
+        working-directory: apps/web
+        run: WEB_URL=http://localhost:3000 node e2e/sso.mjs
