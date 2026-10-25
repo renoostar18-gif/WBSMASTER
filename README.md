@@ -32,6 +32,10 @@ pnpm --filter @wbs-master/api dev        # API on http://localhost:3000, migrate
 pnpm --filter @wbs-master/web dev        # web app on http://localhost:5173 (proxies /api)
 ```
 
+Browser-only demo: `pnpm --filter @wbs-master/web build:demo` packs the web app into one HTML file
+(`apps/web/dist-demo/wbs-master-demo.html`) where the API is simulated in the browser with the same
+engine, seeded with the 24 kV RMU example. Data stays in that browser.
+
 Browser smoke test (API and web app running): `node apps/web/e2e/smoke.mjs`. Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
 

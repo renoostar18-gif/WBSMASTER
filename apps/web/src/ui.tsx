@@ -46,6 +46,12 @@ export function TopBar({ children }: { children?: ReactNode }) {
       <Link className="mark" to="/"><i><b /><b /><b /><b /></i>{t('app')}</Link>
       {children}
       <span className="sp" />
+      {import.meta.env.MODE === 'demo' && (
+        <span className="demo-chip" title={t('demoNote')}>
+          {t('demo')}
+          <button className="btn sm" onClick={async () => { (await import('./demo/server.js')).resetDemo(); location.reload(); }}>{t('demoReset')}</button>
+        </span>
+      )}
       <button className="btn" onClick={() => setTheme(NEXT_THEME[theme])} title={t('theme')}>{t(`theme_${theme}` as MessageKey)}</button>
       <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')} lang={locale === 'en' ? 'ar' : 'en'}>{t('language')}</button>
       {me && <button className="btn" onClick={signOut} title={me.user.email}>{t('signOut')}</button>}

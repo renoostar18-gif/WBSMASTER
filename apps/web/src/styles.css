@@ -48,6 +48,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mark i b:nth-child(n+2) { opacity: .6; }
 .top .sp { flex: 1; }
 .crumb { color: var(--muted); }
+.demo-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--sel); border-radius: 999px; padding: 3px 3px 3px 12px; white-space: nowrap; }
+[dir="rtl"] .demo-chip { padding: 3px 12px 3px 3px; }
 .title-input { flex: 1 1 220px; min-width: 0; max-width: 520px; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 5px 8px; font-size: 16px; font-weight: 600; }
 .title-input:hover { border-color: var(--line); }
 .title-input:focus { border-color: var(--accent); background: var(--bg); outline: none; }
