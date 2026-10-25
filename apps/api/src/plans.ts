@@ -9,14 +9,16 @@ export interface PlanLimits {
   portfolio: boolean;
   guests: boolean;
   multipleCalendars: boolean;
+  /** Public REST API keys and webhooks (spec 3.4, 7.2). */
+  api: boolean;
   /** USD per user per month, monthly billing. Annual billing is 20% less. */
   priceMonthlyUsd: number;
 }
 
 export const PLANS: Record<Plan, PlanLimits> = {
-  free: { members: 3, activeProjects: 3, itemsPerProject: 500, baselinesPerProject: 1, portfolio: false, guests: false, multipleCalendars: false, priceMonthlyUsd: 0 },
-  team: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: false, priceMonthlyUsd: 12 },
-  business: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: true, priceMonthlyUsd: 24 },
+  free: { members: 3, activeProjects: 3, itemsPerProject: 500, baselinesPerProject: 1, portfolio: false, guests: false, multipleCalendars: false, api: false, priceMonthlyUsd: 0 },
+  team: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: false, api: true, priceMonthlyUsd: 12 },
+  business: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: true, api: true, priceMonthlyUsd: 24 },
 };
 
 export const ANNUAL_DISCOUNT = 0.2;

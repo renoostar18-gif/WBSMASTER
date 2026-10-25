@@ -27,13 +27,13 @@ export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.get<P>('/projects/:projectId/people', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId);
+    await projectAccess(deps.db, user, req.params.projectId);
     return { people: await people(req.params.projectId) };
   });
 
   app.get<P>('/projects/:projectId/comments', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId);
+    await projectAccess(deps.db, user, req.params.projectId);
     const r = await deps.db.query(
       `select c.id, c.item_id as "itemId", c.parent_id as "parentId", c.body, c.mentions, c.created_at as "createdAt",
               c.edited_at as "editedAt", c.resolved_at as "resolvedAt", c.author_id as "authorId", u.name as "authorName",
@@ -45,7 +45,7 @@ export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.post<P>('/projects/:projectId/comments', async (req, reply) => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'commenter');
+    await projectAccess(deps.db, user, req.params.projectId, 'commenter');
     const b = parse(z.object({
       body, itemId: z.string().uuid().nullable().optional(), parentId: z.string().uuid().nullable().optional(),
       mentions: z.array(z.string().uuid()).max(50).optional(),
@@ -92,7 +92,7 @@ export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.patch<C>('/projects/:projectId/comments/:commentId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'commenter');
+    await projectAccess(deps.db, user, req.params.projectId, 'commenter');
     const c = await comment(req.params.projectId, req.params.commentId);
     if (c.author_id !== user.id) throw forbidden('not_author');
     const b = parse(z.object({ body }), req.body);
@@ -103,7 +103,7 @@ export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.post<C>('/projects/:projectId/comments/:commentId/resolve', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user.id, req.params.projectId, 'commenter');
+    await projectAccess(deps.db, user, req.params.projectId, 'commenter');
     const c = await comment(req.params.projectId, req.params.commentId);
     if (c.parent_id) throw badRequest('not_thread');
     const b = parse(z.object({ resolved: z.boolean() }), req.body);
@@ -117,7 +117,7 @@ export const commentRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   /** Authors delete their own comments; project admins can delete any. Deleting a thread's first comment deletes the thread. */
   app.delete<C>('/projects/:projectId/comments/:commentId', async req => {
     const user = requireUser(req);
-    const acc = await projectAccess(deps.db, user.id, req.params.projectId, 'commenter');
+    const acc = await projectAccess(deps.db, user, req.params.projectId, 'commenter');
     const c = await comment(req.params.projectId, req.params.commentId);
     if (c.author_id !== user.id && acc.role !== 'admin') throw forbidden('not_author');
     await deps.db.query('delete from comments where id = $1', [c.id]);

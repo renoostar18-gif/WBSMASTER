@@ -15,7 +15,7 @@ The product specification (requirements, business rules, data dictionary, Excel 
 
 | `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 
-Coming next: `infra` (Terraform for Google Cloud Dammam), single sign-on, billing and the public API.
+Coming next: `infra` (Terraform for Google Cloud Dammam), single sign-on and billing.
 
 ## Develop
 
@@ -42,7 +42,8 @@ Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user
 `node apps/web/e2e/excel.mjs` (import a plain sheet, export, edit in Excel, re-import, undo) and
 `node apps/web/e2e/portfolio.mjs` (portfolio views; comments, mentions and resolving between two people;
 it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
-`node apps/web/e2e/notifications.mjs` (a mention and an assignment reach the bell and open the item). Set `CHROMIUM_PATH`
+`node apps/web/e2e/notifications.mjs` (a mention and an assignment reach the bell and open the item) and
+`node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
 
 ## Portfolio and comments
@@ -81,6 +82,22 @@ a day by a scheduler. The bell checks for new notifications every minute and whe
 regains focus. Not yet covered: items that turn red only because time passed (no edit), and
 Teams/Slack delivery.
 
+## Public API and webhooks
+
+Team and Business plans (spec 7.2). The reference is served at `/api/docs`, and the OpenAPI 3.1
+description at `/api/openapi.json`.
+
+- **API keys** (Settings → API & webhooks): `Authorization: Bearer wbsm_…`. A key acts with its
+  owner's permissions in one organisation, read-only or read-and-change, and cannot sign in, change the
+  account or make other keys. Only a hash is stored. 300 requests a minute per key (`API_RATE_LIMIT`);
+  sign-in and sign-up are limited to 20 a minute per address (`AUTH_RATE_LIMIT`; set `TRUST_PROXY=1`
+  behind a load balancer so the client's address is used).
+- **Webhooks** (organisation admins): `item.changed`, `health.changed`, `baseline.saved`,
+  `project.created`, signed with HMAC-SHA256 (`X-WBS-Signature: t=…,v1=…`), retried after 1, 5, 30, 120
+  and 720 minutes. Only public https addresses are allowed in production, checked again before every
+  delivery; `WEBHOOK_ALLOW_PRIVATE=1` allows local addresses (the default outside production). The API
+  process delivers them; with several instances each claims different deliveries.
+
 ## Excel
 
 Excel runs in the browser (ExcelJS, loaded only when used), so files never pass through the server
@@ -114,6 +131,8 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | Baselines | `POST /projects/:id/baselines`, `PATCH/DELETE /projects/:id/baselines/:bid`, `POST .../:bid/restore` |
 | Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` |
 | Portfolio | `GET /orgs/:orgId/portfolio` (`?asOf=YYYY-MM-DD` for one status date across projects); Team and Business plans |
+| API keys | `GET/POST /me/api-keys`, `DELETE /me/api-keys/:id` (signed-in sessions only) |
+| Webhooks | `GET/POST /orgs/:orgId/webhooks`, `PATCH/DELETE .../:id`, `POST .../:id/test`, `GET .../:id/deliveries` |
 | Notifications | `GET /notifications`, `GET /notifications/unread`, `POST /notifications/read` (`{ ids }`, or all); `PATCH /me` with `notifyEmail`: `instant`, `daily` or `off` |
 | Comments | `GET/POST /projects/:id/comments`, `PATCH/DELETE /projects/:id/comments/:cid`, `POST .../:cid/resolve`, `GET /projects/:id/people` (who can be mentioned) |
 | Live | WebSocket `GET /projects/:id/live`: `presence` (who is viewing, what each has selected) and `changed` (a new version was saved) messages; send `{ "type": "select", "itemId": … }` to share a selection. One API process holds the connections; several instances will need Redis pub/sub. |

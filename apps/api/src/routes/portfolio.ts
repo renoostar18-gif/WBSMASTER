@@ -19,7 +19,7 @@ export const portfolioRoutes = (deps: AppDeps): FastifyPluginAsync => async app 
    */
   app.get<{ Params: { orgId: string }; Querystring: { asOf?: string } }>('/orgs/:orgId/portfolio', async req => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId);
+    const acc = await orgAccess(deps.db, user, req.params.orgId);
     if (!PLANS[acc.plan].portfolio) throw forbidden('plan_portfolio');
     const q = parse(z.object({ asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => toDay(s) != null).optional() }), req.query);
     const all = acc.role === 'owner' || acc.role === 'admin';

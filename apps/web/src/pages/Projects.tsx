@@ -56,6 +56,7 @@ export function ProjectsPage() {
             {org && <span className="crumb">{org.name}</span>}
             {org && <span className="badge">{t(`plan_${org.plan}` as MessageKey)}</span>}
             {org && <Link className="btn" to={`/portfolio/${org.id}`} style={{ marginInlineStart: 'auto' }}>{Icon.portfolio} {t('portfolio')}</Link>}
+            {import.meta.env.MODE !== 'demo' && <Link className="btn" to="/settings">{Icon.gear} {t('integrations')}</Link>}
           </div>
           <form className="newp" onSubmit={create}>
             <input name="name" placeholder={t('projectName')} aria-label={t('projectName')} maxLength={200} />

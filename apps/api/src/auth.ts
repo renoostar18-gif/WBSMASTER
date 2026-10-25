@@ -25,7 +25,7 @@ export async function verifyPassword(password: string, stored: string | null): P
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
-const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
+export const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
 
 /** Create a session and return the raw token for the cookie. Only its hash is stored. */
 export async function createSession(db: Queryable, userId: string, days: number): Promise<string> {
@@ -45,6 +45,8 @@ export interface SessionUser {
   theme: string;
   /** Email for notifications: each one at once, a daily digest, or none. */
   notifyEmail: 'instant' | 'daily' | 'off';
+  /** Set when the request came with an API key instead of a session. */
+  apiKey?: { id: string; orgId: string; scope: 'read' | 'write' } | null;
 }
 
 export async function userForToken(db: Queryable, token: string | undefined): Promise<SessionUser | null> {

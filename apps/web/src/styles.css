@@ -421,3 +421,18 @@ h4.sub { margin: 4px 0 0; font-size: 11px; text-transform: uppercase; letter-spa
 .nlist li.unread button { font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 [dir="rtl"] .nlist li.unread button { box-shadow: inset -3px 0 0 var(--accent); }
 .nlist .hint { font-weight: 400; font-size: 12px; }
+
+/* ---- settings: API keys and webhooks ---- */
+.row-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.row-form .fld { width: auto; min-width: 160px; }
+.row-form .fld.grow { flex: 1 1 280px; }
+.row-form .events { border: 0; padding: 0; margin: 0; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.row-form .events legend { font-size: 11.5px; color: var(--muted); padding: 0; margin-block-end: 4px; }
+.secret { border: 1px solid var(--accent); background: var(--sel); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.secret code { font-family: var(--f-mono); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+.hooks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hooks li { border: 1px solid var(--line2); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.hooks li.paused { opacity: .7; }
+.hook-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.hook-head code { font-family: var(--f-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.org-h { margin: 4px 0 -6px; font-size: 13px; }

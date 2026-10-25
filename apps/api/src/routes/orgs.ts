@@ -19,7 +19,7 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
 
   app.patch<{ Params: { orgId: string } }>('/orgs/:orgId', async req => {
     const user = requireUser(req);
-    await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const body = parse(z.object({ name: z.string().trim().min(1).max(200) }), req.body);
     await deps.db.query('update organisations set name = $2, updated_at = now() where id = $1', [req.params.orgId, body.name]);
     return { ok: true };
@@ -27,7 +27,7 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
 
   app.get<{ Params: { orgId: string } }>('/orgs/:orgId/members', async req => {
     const user = requireUser(req);
-    await orgAccess(deps.db, user.id, req.params.orgId, 'member');
+    await orgAccess(deps.db, user, req.params.orgId, 'member');
     const r = await deps.db.query(
       `select u.id, u.email, u.name, m.role from memberships m join users u on u.id = m.user_id
         where m.org_id = $1 order by u.name`, [req.params.orgId]);
@@ -37,7 +37,7 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   // Phase 1 adds people who already have an account; email invitations come with notifications (Phase 3).
   app.post<{ Params: { orgId: string } }>('/orgs/:orgId/members', async (req, reply) => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    const acc = await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const body = parse(z.object({ email: z.string().trim().toLowerCase().email(), role: orgRole.exclude(['owner']) }), req.body);
     if (body.role === 'guest' && !PLANS[acc.plan].guests) throw forbidden('plan_no_guests');
     const count = await deps.db.query<{ n: number }>(
@@ -51,7 +51,7 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
 
   app.patch<{ Params: { orgId: string; userId: string } }>('/orgs/:orgId/members/:userId', async req => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId, 'admin');
+    const acc = await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const body = parse(z.object({ role: orgRole }), req.body);
     if (body.role === 'owner' && acc.role !== 'owner') throw forbidden('owner_only');
     await tx(deps.db, async c => {
@@ -66,7 +66,7 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
 
   app.delete<{ Params: { orgId: string; userId: string } }>('/orgs/:orgId/members/:userId', async req => {
     const user = requireUser(req);
-    const acc = await orgAccess(deps.db, user.id, req.params.orgId, user.id === req.params.userId ? 'guest' : 'admin');
+    const acc = await orgAccess(deps.db, user, req.params.orgId, user.id === req.params.userId ? 'guest' : 'admin');
     await tx(deps.db, async c => {
       const cur = await c.query<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2 for update', [req.params.orgId, req.params.userId]);
       if (!cur.rows[0]) throw notFound('member_not_found');
