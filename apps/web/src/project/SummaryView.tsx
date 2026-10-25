@@ -53,7 +53,8 @@ export function SummaryView({ store, computed, maxLevel }: {
         </div>
         <div className="grp">
           <button className="btn" onClick={copy}>{t('copyText')}</button>
-          <button className="btn primary" onClick={download}>{t('downloadReport')}</button>
+          {/* the demo runs in a viewer that blocks downloads */}
+          {import.meta.env.MODE !== 'demo' && <button className="btn primary" onClick={download}>{t('downloadReport')}</button>}
         </div>
       </div>
 
