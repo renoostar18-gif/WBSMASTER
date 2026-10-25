@@ -28,7 +28,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     databaseUrl: env.DATABASE_URL ?? 'postgres://postgres@localhost:5433/wbs_dev?host=/tmp',
     port: Number(env.PORT ?? 3000),
     host: env.HOST ?? '0.0.0.0',
-    secureCookies: env.NODE_ENV === 'production',
+    // SECURE_COOKIES=0 only for testing a production build over plain http on one machine
+    secureCookies: env.SECURE_COOKIES ? env.SECURE_COOKIES === '1' : env.NODE_ENV === 'production',
     sessionDays: Number(env.SESSION_DAYS ?? 30),
     webDist: env.WEB_DIST ? resolve(env.WEB_DIST) : null,
     appUrl: (env.APP_URL ?? 'http://localhost:5173').replace(/\/$/, ''),
