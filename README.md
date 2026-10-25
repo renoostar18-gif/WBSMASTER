@@ -15,7 +15,7 @@ The product specification (requirements, business rules, data dictionary, Excel 
 
 | `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 
-Coming next: `infra` (Terraform for Google Cloud Dammam), then notifications, single sign-on and billing.
+Coming next: `infra` (Terraform for Google Cloud Dammam), single sign-on, billing and the public API.
 
 ## Develop
 
@@ -41,7 +41,8 @@ Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user
 `node apps/web/e2e/collab.mjs` (two people editing the same project live),
 `node apps/web/e2e/excel.mjs` (import a plain sheet, export, edit in Excel, re-import, undo) and
 `node apps/web/e2e/portfolio.mjs` (portfolio views; comments, mentions and resolving between two people;
-it also needs `DATABASE_URL`, to put the test organisation on the Team plan). Set `CHROMIUM_PATH`
+it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
+`node apps/web/e2e/notifications.mjs` (a mention and an assignment reach the bell and open the item). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
 
 ## Portfolio and comments
@@ -58,6 +59,27 @@ to use an installed Chromium, and `WEB_URL` to test another address.
   see the project; replies reopen a resolved thread; "Open threads only" filters the rest out.
   Commenters can comment without being able to edit, viewers can read only, and everyone viewing the
   project sees new comments without reloading.
+
+## Notifications
+
+The bell (top bar) lists what needs the person's attention (spec 7.1): being @mentioned, replies in
+threads they are part of, an item assigned to them (its owner text is their name or email), their
+items turning red after an edit, and baselines saved on their projects. Nobody is told about their own
+change. Each notification links to the item, opening its comments for mentions and replies.
+
+Email follows each person's choice in the bell menu: each one straight away (default), a daily digest,
+or none. Emails are in the person's language (Arabic right to left) and link back to the app.
+
+| Setting | Meaning |
+| --- | --- |
+| `SMTP_URL` | SMTP server, e.g. `smtps://user:password@smtp.example.com:465`. Unset: emails are only logged. |
+| `MAIL_FROM` | Sender, e.g. `WBS Master <no-reply@your-domain>` |
+| `APP_URL` | Public address of the app, for links in emails |
+
+The daily digest is `pnpm --filter @wbs-master/api digest` (`node apps/api/dist/digest.js`), run once
+a day by a scheduler. The bell checks for new notifications every minute and whenever the page
+regains focus. Not yet covered: items that turn red only because time passed (no edit), and
+Teams/Slack delivery.
 
 ## Excel
 
@@ -92,6 +114,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | Baselines | `POST /projects/:id/baselines`, `PATCH/DELETE /projects/:id/baselines/:bid`, `POST .../:bid/restore` |
 | Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` |
 | Portfolio | `GET /orgs/:orgId/portfolio` (`?asOf=YYYY-MM-DD` for one status date across projects); Team and Business plans |
+| Notifications | `GET /notifications`, `GET /notifications/unread`, `POST /notifications/read` (`{ ids }`, or all); `PATCH /me` with `notifyEmail`: `instant`, `daily` or `off` |
 | Comments | `GET/POST /projects/:id/comments`, `PATCH/DELETE /projects/:id/comments/:cid`, `POST .../:cid/resolve`, `GET /projects/:id/people` (who can be mentioned) |
 | Live | WebSocket `GET /projects/:id/live`: `presence` (who is viewing, what each has selected) and `changed` (a new version was saved) messages; send `{ "type": "select", "itemId": … }` to share a selection. One API process holds the connections; several instances will need Redis pub/sub. |
 

@@ -43,6 +43,8 @@ export interface SessionUser {
   name: string;
   locale: string;
   theme: string;
+  /** Email for notifications: each one at once, a daily digest, or none. */
+  notifyEmail: 'instant' | 'daily' | 'off';
 }
 
 export async function userForToken(db: Queryable, token: string | undefined): Promise<SessionUser | null> {
@@ -51,7 +53,7 @@ export async function userForToken(db: Queryable, token: string | undefined): Pr
     `update sessions s set last_seen_at = now()
        from users u
       where s.token_hash = $1 and s.expires_at > now() and u.id = s.user_id
-      returning u.id, u.email, u.name, u.locale, u.theme`,
+      returning u.id, u.email, u.name, u.locale, u.theme, u.notify_email as "notifyEmail"`,
     [hashToken(token)],
   );
   return r.rows[0] ?? null;

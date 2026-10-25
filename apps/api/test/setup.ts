@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { type Db, createDb } from '../src/db.js';
+import { LogMailer } from '../src/mailer.js';
 import { migrate } from '../src/migrate.js';
 
 export const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgres://postgres@localhost:5433/wbs_test?host=/tmp';
@@ -11,6 +12,8 @@ export const TODAY = new Date(Date.UTC(2026, 9, 22));
 export interface TestApp {
   app: FastifyInstance;
   db: Db;
+  /** Emails the app sent. */
+  mail: LogMailer;
   close: () => Promise<void>;
 }
 
@@ -19,9 +22,10 @@ export async function startApp(): Promise<TestApp> {
   const db = createDb(TEST_DB);
   await db.query('drop schema public cascade; create schema public;');
   await migrate(db);
-  const app = buildApp({ db, config: { ...loadConfig(), databaseUrl: TEST_DB }, today: () => TODAY });
+  const mail = new LogMailer(true);
+  const app = buildApp({ db, config: { ...loadConfig(), databaseUrl: TEST_DB, appUrl: 'https://app.example' }, today: () => TODAY, mailer: mail });
   await app.ready();
-  return { app, db, close: async () => { await app.close(); await db.end(); } };
+  return { app, db, mail, close: async () => { await app.close(); await db.end(); } };
 }
 
 /** A signed-in user: makes requests with their session cookie. */

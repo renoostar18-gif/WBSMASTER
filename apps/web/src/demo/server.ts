@@ -8,6 +8,7 @@ import {
   type WbsItem, WorkCalendar, applyOps, blankItem, computeProject, deleteBaseline, portfolioEntry, renameBaseline, restoreBaseline,
   saudiHolidays, saveBaseline, sortPortfolio, toDay, todayDay, toIso,
 } from '@wbs-master/engine';
+import type { Notification } from '../Bell.js';
 import type { Comment, Person } from '../project/comments.js';
 import { ApiError } from '../api.js';
 
@@ -21,12 +22,13 @@ interface DemoProject {
 }
 interface DemoState {
   signedIn: boolean;
-  user: { id: string; email: string; name: string; locale: 'en' | 'ar'; theme: 'auto' | 'light' | 'dark' };
+  user: { id: string; email: string; name: string; locale: 'en' | 'ar'; theme: 'auto' | 'light' | 'dark'; notifyEmail: 'instant' | 'daily' | 'off' };
   org: { id: string; name: string; plan: 'team'; role: 'owner' };
   projects: DemoProject[];
+  notifications?: Notification[];
 }
 
-const KEY = 'wbs.demo.v2';
+const KEY = 'wbs.demo.v3';
 /** Example colleagues, so @mentions can be tried in the demo. */
 const COLLEAGUES: Person[] = [
   { id: '00000000-0000-4000-8000-000000000001', name: 'Sara Ahmed', email: 'sara@wbs-master.example' },
@@ -115,7 +117,7 @@ function sampleItems(): WbsItem[] {
 }
 
 function seed(): DemoState {
-  const user = { id: uuid(), email: 'demo@wbs-master.example', name: 'Demo user', locale: 'en' as const, theme: 'auto' as const };
+  const user = { id: uuid(), email: 'demo@wbs-master.example', name: 'Demo user', locale: 'en' as const, theme: 'auto' as const, notifyEmail: 'off' as const };
   const project = (name: string, items: WbsItem[], trend: number[]): DemoProject => ({
     id: uuid(), name, version: 1, updatedAt: new Date().toISOString(), settings: { ...DEFAULT_SETTINGS }, items, baselines: [],
     // a few weeks of finish slip, so the portfolio trend has a line to draw
@@ -131,8 +133,12 @@ function seed(): DemoState {
     { id: uuid(), itemId: busbar.id, parentId: threadId, body: 'If it slips again, prototype build moves too: it is on the critical path.',
       mentions: [], createdAt: at(1), editedAt: null, resolvedAt: null, resolvedByName: null, authorId: COLLEAGUES[1]!.id, authorName: COLLEAGUES[1]!.name },
   ];
+  const mention: Notification = {
+    id: uuid(), kind: 'mention', projectId: rmu.id, itemId: busbar.id, commentId: threadId, createdAt: at(2), readAt: null,
+    data: { actorName: COLLEAGUES[0]!.name, projectName: rmu.name, itemName: busbar.name, excerpt: rmu.comments[0]!.body },
+  };
   return {
-    signedIn: true, user,
+    signedIn: true, user, notifications: [mention],
     org: { id: uuid(), name: 'Demo workspace', plan: 'team', role: 'owner' },
     projects: [rmu, project('Substation automation upgrade', substationItems(), [0, 0, 0, 0]), project('ERP roll-out – Plant 2', erpItems(), [5, 10, 15, 20, 25])],
   };
@@ -183,6 +189,15 @@ export async function demoRequest<T>(method: string, url: string, body: unknown)
   if (!s.signedIn) throw new ApiError(401, 'not_signed_in');
   if (route === 'GET /me') return out({ user: s.user, organisations: [s.org] });
   if (route === 'PATCH /me') { Object.assign(s.user, b); return out({ user: s.user }); }
+  // the demo sends no email; notifications come from the example colleagues only
+  const notes = (s.notifications ??= []);
+  if (route === 'GET /notifications/unread') return out({ unread: notes.filter(n => !n.readAt).length });
+  if (route === 'GET /notifications') return out({ notifications: notes, unread: notes.filter(n => !n.readAt).length });
+  if (route === 'POST /notifications/read') {
+    const ids = b.ids as string[] | undefined;
+    for (const n of notes) if (!ids || ids.includes(n.id)) n.readAt ??= new Date().toISOString();
+    return out({ ok: true });
+  }
 
   let m = /^\/orgs\/[^/]+\/projects$/.exec(url);
   if (m && method === 'GET') {

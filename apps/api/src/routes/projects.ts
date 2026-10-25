@@ -10,6 +10,7 @@ import { badRequest, forbidden, notFound } from '../errors.js';
 import { type Op, applyOps, opsBody } from '../ops.js';
 import { type ProjectRole, orgAccess, projectAccess } from '../permissions.js';
 import { PLANS } from '../plans.js';
+import { itemNotifications, notifyNow, projectPeople } from '../notify.js';
 import { saveItems } from '../save.js';
 import { loadProject, recordSnapshot, serializeComputed } from '../store.js';
 
@@ -183,12 +184,22 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       const statusDate = toDay(loaded.project.settings.statusDate) ?? today();
       const r = applyOps(loaded.project, body.ops as Op[], { statusDate, calendar: cal, maxItems: PLANS[acc.plan].itemsPerProject });
       const saved = await saveItems(c, loaded, r.project, user.id, r.scheduled);
-      return { r, saved, cal };
+      return { r, saved, cal, before: loaded.project };
     });
     deps.live?.changed(req.params.projectId, result.saved.version, user,
       [...result.saved.added, ...result.saved.updated, ...result.saved.removed], clientOf(req));
     const computed = computeProject(result.r.project, { calendar: result.cal, today: today() });
     await recordSnapshot(deps.db, req.params.projectId, computed, today());
+    // items assigned to someone, and items that turned red (spec 7.1)
+    const touched = new Set([...result.saved.added, ...result.saved.updated]);
+    if (touched.size) {
+      const people = await projectPeople(deps.db, req.params.projectId);
+      await notifyNow(deps.db, deps.mailer, deps.config.appUrl, itemNotifications({
+        projectId: req.params.projectId, projectName: result.r.project.name, actor: user, people,
+        before: result.before.items, after: result.r.project.items.filter(i => touched.has(i.id)),
+        computedBefore: computeProject(result.before, { calendar: result.cal, today: today() }), computedAfter: computed,
+      }));
+    }
     return {
       version: result.saved.version,
       created: result.r.created,
@@ -269,6 +280,16 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       return fresh.map(b => b.name);
     });
     await announce(req.params.projectId, user, [], false, clientOf(req));
+    const people = await projectPeople(deps.db, req.params.projectId);
+    const projectName = (await deps.db.query<{ name: string }>('select name from projects where id = $1', [req.params.projectId])).rows[0]!.name;
+    // the automatic "Original baseline" saved alongside the first one is not news
+    const named = out.at(-1);
+    if (named) {
+      await notifyNow(deps.db, deps.mailer, deps.config.appUrl, people.filter(p => p.id !== user.id).map(p => ({
+        userId: p.id, kind: 'baseline' as const, projectId: req.params.projectId, actorId: user.id,
+        data: { actorName: user.name, projectName, baselineName: named },
+      })));
+    }
     return reply.status(201).send({ saved: out });
   });
 

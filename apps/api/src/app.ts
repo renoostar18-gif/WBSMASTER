@@ -9,11 +9,13 @@ import type { Config } from './config.js';
 import type { Db } from './db.js';
 import { ApiError } from './errors.js';
 import { LiveHub } from './live.js';
+import { type Mailer, createMailer } from './mailer.js';
 import { OpError } from './ops.js';
 import { authRoutes } from './routes/auth.js';
 import { calendarRoutes } from './routes/calendars.js';
 import { orgRoutes } from './routes/orgs.js';
 import { liveRoutes } from './routes/live.js';
+import { notificationRoutes } from './routes/notifications.js';
 import { commentRoutes } from './routes/comments.js';
 import { portfolioRoutes } from './routes/portfolio.js';
 import { projectRoutes } from './routes/projects.js';
@@ -33,10 +35,13 @@ export interface AppDeps {
   today?: () => Date;
   /** Live updates hub; created by buildApp when not given. */
   live?: LiveHub;
+  /** Email sender; created from the config by buildApp when not given. */
+  mailer?: Mailer;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   deps.live ??= new LiveHub();
+  deps.mailer ??= createMailer(deps.config.smtpUrl, deps.config.mailFrom);
   const app = Fastify({ logger: false, bodyLimit: 2 * 1024 * 1024 });
   app.register(cookie);
   app.register(websocket);
@@ -66,6 +71,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(projectRoutes(deps), { prefix: '/api' });
   app.register(portfolioRoutes(deps), { prefix: '/api' });
   app.register(commentRoutes(deps), { prefix: '/api' });
+  app.register(notificationRoutes(deps), { prefix: '/api' });
   app.register(liveRoutes(deps), { prefix: '/api' });
 
   // production: serve the web app, and its index.html for any page route (client-side routing)

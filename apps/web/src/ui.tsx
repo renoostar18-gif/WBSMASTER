@@ -1,3 +1,4 @@
+import { Bell } from './Bell.js';
 import type { Health } from '@wbs-master/engine';
 import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -59,6 +60,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
           <button className="btn sm" onClick={async () => { (await import('./demo/server.js')).resetDemo(); location.reload(); }}>{t('demoReset')}</button>
         </span>
       )}
+      {me && <Bell />}
       <button className="btn" onClick={() => setTheme(NEXT_THEME[theme])} title={t('theme')}>{t(`theme_${theme}` as MessageKey)}</button>
       <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')} lang={locale === 'en' ? 'ar' : 'en'}>{t('language')}</button>
       {me && <button className="btn" onClick={signOut} title={me.user.email}>{t('signOut')}</button>}

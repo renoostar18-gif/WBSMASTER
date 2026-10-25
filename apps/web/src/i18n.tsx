@@ -160,6 +160,14 @@ const en = {
   pfWorkload: 'Workload by owner', pfWorkloadHint: 'Open tasks active in the next {n} days or overdue, all owners', pfNoWorkload: 'No active tasks in this window.',
   task: 'Task', done: 'Done', unassigned: 'Unassigned', none: 'None', pfTextHead: 'Status date: {date} · {n} projects',
   w_waits: 'Waits for {code} {name}, which is {health}', w_late_start: 'Should have started {date}', w_on_hold: 'On hold', w_behind_plan: 'Progress {progress}% against {planned}% planned',
+  // notifications
+  notifications: 'Notifications', notificationsN: '{n} unread notifications', notificationsN_one: '1 unread notification',
+  markAllRead: 'Mark all as read', noNotifications: 'Nothing new. Mentions, replies, work assigned to you and items turning red appear here.',
+  emailMe: 'Email me', email_instant: 'Each one, straight away', email_daily: 'A daily digest', email_off: 'Never (in the app only)',
+  n_mention: '{actor} mentioned you on {item} in {project}', n_reply: '{actor} replied on {item} in {project}',
+  n_assigned: '{actor} assigned {item} in {project} to you', n_turned_red: '{item} in {project} is now delayed ({n} working days late)',
+  n_turned_red_one: '{item} in {project} is now delayed (1 working day late)', n_turned_red_overdue: '{item} in {project} is now delayed: its forecast finish has passed',
+  n_baseline: '{actor} saved the baseline “{name}” in {project}',
 };
 
 const ar: typeof en = {
@@ -317,6 +325,14 @@ const ar: typeof en = {
   pfWorkload: 'عبء العمل لكل مسؤول', pfWorkloadHint: 'المهام المفتوحة النشطة خلال {n} يومًا القادمة أو المتجاوزة، لكل المسؤولين', pfNoWorkload: 'لا توجد مهام نشطة في هذه الفترة.',
   task: 'المهمة', done: 'المنجز', unassigned: 'غير مسند', none: 'لا شيء', pfTextHead: 'تاريخ الحالة: {date} · {n} مشاريع',
   w_waits: 'ينتظر {code} {name}، وهو {health}', w_late_start: 'كان يجب أن يبدأ في {date}', w_on_hold: 'معلّق', w_behind_plan: 'التقدم {progress}٪ مقابل {planned}٪ مخطط',
+  // notifications
+  notifications: 'الإشعارات', notificationsN: '{n} إشعارات غير مقروءة', notificationsN_one: 'إشعار واحد غير مقروء',
+  markAllRead: 'تعليم الكل كمقروء', noNotifications: 'لا جديد. تظهر هنا الإشارات والردود والأعمال المسندة إليك والبنود التي تتأخر.',
+  emailMe: 'راسلني بالبريد', email_instant: 'كل إشعار فورًا', email_daily: 'ملخص يومي', email_off: 'أبدًا (داخل التطبيق فقط)',
+  n_mention: 'أشار إليك {actor} في {item} ضمن {project}', n_reply: 'ردّ {actor} على {item} ضمن {project}',
+  n_assigned: 'أسند إليك {actor} البند {item} في {project}', n_turned_red: 'أصبح {item} في {project} متأخرًا ({n} أيام عمل)',
+  n_turned_red_one: 'أصبح {item} في {project} متأخرًا (يوم عمل واحد)', n_turned_red_overdue: 'أصبح {item} في {project} متأخرًا: تجاوز تاريخ النهاية المتوقع',
+  n_baseline: 'حفظ {actor} خط الأساس «{name}» في {project}',
 };
 
 export type MessageKey = keyof typeof en;

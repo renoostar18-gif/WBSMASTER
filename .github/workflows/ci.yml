@@ -72,3 +72,6 @@ jobs:
       - name: Portfolio and comments test
         working-directory: apps/web
         run: WEB_URL=http://localhost:3000 node e2e/portfolio.mjs
+      - name: Notifications test
+        working-directory: apps/web
+        run: WEB_URL=http://localhost:3000 node e2e/notifications.mjs
