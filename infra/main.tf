@@ -4,8 +4,13 @@
 
 locals {
   name = "wbs-master"
-  # whether SMTP is set is not secret, only its value is
-  smtp = nonsensitive(var.smtp_url != "")
+  # optional secrets, set only when given; which ones are set is not secret, only their values are
+  optional_secret_values = {
+    SMTP_URL               = var.smtp_url
+    MOYASAR_SECRET_KEY     = var.moyasar_secret_key
+    MOYASAR_WEBHOOK_SECRET = var.moyasar_webhook_secret
+  }
+  optional_secrets = toset([for k, v in local.optional_secret_values : k if nonsensitive(v != "")])
   apis = [
     "run.googleapis.com", "sqladmin.googleapis.com", "compute.googleapis.com", "servicenetworking.googleapis.com",
     "secretmanager.googleapis.com", "artifactregistry.googleapis.com", "cloudscheduler.googleapis.com",
@@ -174,9 +179,9 @@ resource "google_secret_manager_secret_iam_member" "app_secret_key" {
   member    = "serviceAccount:${google_service_account.app.email}"
 }
 
-resource "google_secret_manager_secret" "smtp_url" {
-  count     = local.smtp ? 1 : 0
-  secret_id = "${local.name}-smtp-url"
+resource "google_secret_manager_secret" "optional" {
+  for_each  = local.optional_secrets
+  secret_id = "${local.name}-${lower(replace(each.key, "_", "-"))}"
   replication {
     user_managed {
       replicas {
@@ -186,10 +191,10 @@ resource "google_secret_manager_secret" "smtp_url" {
   }
 }
 
-resource "google_secret_manager_secret_version" "smtp_url" {
-  count       = local.smtp ? 1 : 0
-  secret      = google_secret_manager_secret.smtp_url[0].id
-  secret_data = var.smtp_url
+resource "google_secret_manager_secret_version" "optional" {
+  for_each    = local.optional_secrets
+  secret      = google_secret_manager_secret.optional[each.key].id
+  secret_data = local.optional_secret_values[each.key]
 }
 
 # ---- images ----
@@ -228,9 +233,9 @@ resource "google_secret_manager_secret_iam_member" "app_database_url" {
   member    = "serviceAccount:${google_service_account.app.email}"
 }
 
-resource "google_secret_manager_secret_iam_member" "app_smtp_url" {
-  count     = local.smtp ? 1 : 0
-  secret_id = google_secret_manager_secret.smtp_url[0].id
+resource "google_secret_manager_secret_iam_member" "app_optional" {
+  for_each  = local.optional_secrets
+  secret_id = google_secret_manager_secret.optional[each.key].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.app.email}"
 }
@@ -238,14 +243,23 @@ resource "google_secret_manager_secret_iam_member" "app_smtp_url" {
 # ---- the app ----
 
 locals {
-  env = {
+  env = merge({
     NODE_ENV              = "production"
     APP_URL               = "https://${var.domain}"
     MAIL_FROM             = var.mail_from
     TRUST_PROXY           = "1"
     WEB_DIST              = "/app/web"
     WEBHOOK_ALLOW_PRIVATE = "0"
-  }
+    }, {
+    # the seller printed on invoices; with a VAT number, invoices carry 15% VAT and the ZATCA QR code
+    for k, v in {
+      SELLER_NAME       = var.seller_name
+      SELLER_NAME_AR    = var.seller_name_ar
+      SELLER_ADDRESS    = var.seller_address
+      SELLER_CR         = var.seller_cr
+      SELLER_VAT_NUMBER = var.seller_vat_number
+    } : k => v if v != ""
+  })
 }
 
 resource "google_cloud_run_v2_service" "app" {
@@ -311,12 +325,12 @@ resource "google_cloud_run_v2_service" "app" {
         }
       }
       dynamic "env" {
-        for_each = local.smtp ? [1] : []
+        for_each = local.optional_secrets
         content {
-          name = "SMTP_URL"
+          name = env.value
           value_source {
             secret_key_ref {
-              secret  = google_secret_manager_secret.smtp_url[0].secret_id
+              secret  = google_secret_manager_secret.optional[env.value].secret_id
               version = "latest"
             }
           }
@@ -395,12 +409,12 @@ resource "google_cloud_run_v2_job" "digest" {
           }
         }
         dynamic "env" {
-          for_each = local.smtp ? [1] : []
+          for_each = local.optional_secrets
           content {
-            name = "SMTP_URL"
+            name = env.value
             value_source {
               secret_key_ref {
-                secret  = google_secret_manager_secret.smtp_url[0].secret_id
+                secret  = google_secret_manager_secret.optional[env.value].secret_id
                 version = "latest"
               }
             }

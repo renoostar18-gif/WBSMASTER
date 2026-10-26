@@ -3,3 +3,10 @@ domain      = "app.wbsmaster.sa"
 alert_email = "ops@wbsmaster.sa"
 mail_from   = "WBS Master <no-reply@wbsmaster.sa>"
 # smtp_url  = "smtps://user:password@smtp.example.sa:465"   # better: TF_VAR_smtp_url in the shell
+
+# invoices: the registered seller; leave seller_vat_number empty until VAT registered
+# seller_name    = "WBS Master Company"
+# seller_name_ar = "شركة دبليو بي إس ماستر"
+# seller_address = "Riyadh, Saudi Arabia"
+# seller_cr      = "1010000000"
+# seller_vat_number = ""

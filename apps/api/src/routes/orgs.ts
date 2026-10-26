@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { type AppDeps, parse, requireUser } from '../app.js';
+import { checkRoomForMember } from '../billing.js';
 import { tx } from '../db.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
 import { orgAccess } from '../permissions.js';
@@ -40,12 +41,12 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     const acc = await orgAccess(deps.db, user, req.params.orgId, 'admin');
     const body = parse(z.object({ email: z.string().trim().toLowerCase().email(), role: orgRole.exclude(['owner']) }), req.body);
     if (body.role === 'guest' && !PLANS[acc.plan].guests) throw forbidden('plan_no_guests');
-    const count = await deps.db.query<{ n: number }>(
-      "select count(*)::int as n from memberships where org_id = $1 and role <> 'guest'", [req.params.orgId]);
-    if (body.role !== 'guest' && count.rows[0]!.n >= PLANS[acc.plan].members) throw forbidden('plan_member_limit');
     const u = await deps.db.query<{ id: string }>('select id from users where lower(email) = $1', [body.email]);
     if (!u.rows[0]) throw notFound('user_not_found');
-    await deps.db.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3)', [req.params.orgId, u.rows[0].id, body.role]);
+    await tx(deps.db, async c => {
+      if (body.role !== 'guest') await checkRoomForMember(c, req.params.orgId);
+      await c.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3)', [req.params.orgId, u.rows[0]!.id, body.role]);
+    });
     return reply.status(201).send({ userId: u.rows[0].id });
   });
 
@@ -58,6 +59,7 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
       const cur = await c.query<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2 for update', [req.params.orgId, req.params.userId]);
       if (!cur.rows[0]) throw notFound('member_not_found');
       if (cur.rows[0].role === 'owner' && acc.role !== 'owner') throw forbidden('owner_only');
+      if (cur.rows[0].role === 'guest' && body.role !== 'guest') await checkRoomForMember(c, req.params.orgId);
       await c.query('update memberships set role = $3 where org_id = $1 and user_id = $2', [req.params.orgId, req.params.userId, body.role]);
       await ensureOwner(c, req.params.orgId);
     });

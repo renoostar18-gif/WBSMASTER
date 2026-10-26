@@ -8,7 +8,7 @@ import { type AppDeps, clientOf, parse, requireUser } from '../app.js';
 import { type Tx, tx } from '../db.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
 import { type Op, applyOps, opsBody } from '../ops.js';
-import { type ProjectRole, orgAccess, projectAccess } from '../permissions.js';
+import { type ProjectAccess, type ProjectRole, checkWritable, orgAccess, overPlanLimit, projectAccess } from '../permissions.js';
 import { PLANS } from '../plans.js';
 import { itemNotifications, notifyNow, projectPeople } from '../notify.js';
 import { saveItems } from '../save.js';
@@ -54,7 +54,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   }
 
   /** Full project for the web app: stored data, calendar and the engine's calculations. */
-  async function projectPayload(projectId: string, role: ProjectRole) {
+  async function projectPayload(projectId: string, role: ProjectRole, acc: Pick<ProjectAccess, 'orgId' | 'plan'>) {
     const loaded = await loadProject(deps.db, projectId);
     const computed = computeProject(loaded.project, { calendar: new WorkCalendar(loaded.calendar), today: today() });
     const summary = await deps.db.query(
@@ -64,6 +64,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
         id: loaded.row.id, orgId: loaded.row.org_id, name: loaded.row.name, version: loaded.row.version,
         calendarId: loaded.row.calendar_id, locale: loaded.row.locale, archived: !!loaded.row.archived_at,
         settings: loaded.project.settings,
+        readOnly: loaded.row.archived_at ? 'archived' : await overPlanLimit(deps.db, acc.orgId, projectId, acc.plan) ? 'plan' : null,
       },
       role,
       items: loaded.project.items,
@@ -115,7 +116,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   app.get<P>('/projects/:projectId', async req => {
     const user = requireUser(req);
     const acc = await projectAccess(deps.db, user, req.params.projectId);
-    return projectPayload(req.params.projectId, acc.role);
+    return projectPayload(req.params.projectId, acc.role, acc);
   });
 
   app.patch<P>('/projects/:projectId', async req => {
@@ -131,6 +132,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       locale: z.enum(['en', 'ar']),
       archived: z.boolean(),
     }).partial(), req.body);
+    if (Object.keys(body).some(k => k !== 'archived')) await checkWritable(deps.db, acc);
     const moved = await tx(deps.db, async c => {
       if (body.calendarId) {
         const ok = await c.query('select 1 from calendars where id = $1 and org_id = $2', [body.calendarId, acc.orgId]);
@@ -184,6 +186,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   app.post<P>('/projects/:projectId/ops', async req => {
     const user = requireUser(req);
     const acc = await projectAccess(deps.db, user, req.params.projectId, 'editor');
+    await checkWritable(deps.db, acc);
     const body = parse(opsBody, req.body);
     const result = await tx(deps.db, async c => {
       const loaded = await loadProject(c, req.params.projectId, true);
@@ -278,6 +281,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   app.post<P>('/projects/:projectId/baselines', async (req, reply) => {
     const user = requireUser(req);
     const acc = await projectAccess(deps.db, user, req.params.projectId, 'admin');
+    await checkWritable(deps.db, acc);
     const body = parse(z.object({ name: z.string().trim().max(120).optional(), reason: z.string().trim().max(1000).optional() }), req.body ?? {});
     const out = await tx(deps.db, async c => {
       const loaded = await loadProject(c, req.params.projectId, true);
@@ -328,7 +332,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.patch<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user, req.params.projectId, 'admin');
+    await checkWritable(deps.db, await projectAccess(deps.db, user, req.params.projectId, 'admin'));
     const body = parse(z.object({ name: z.string().trim().min(1).max(120) }), req.body);
     const r = await deps.db.query('update baselines set name = $3 where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId, body.name]);
     if (!r.rowCount) throw notFound('baseline_not_found');
@@ -338,7 +342,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.post<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId/restore', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user, req.params.projectId, 'admin');
+    await checkWritable(deps.db, await projectAccess(deps.db, user, req.params.projectId, 'admin'));
     await tx(deps.db, async c => {
       const loaded = await loadProject(c, req.params.projectId, true);
       if (!loaded.project.baselines.some(b => b.id === req.params.baselineId)) throw notFound('baseline_not_found');
@@ -351,7 +355,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.delete<{ Params: { projectId: string; baselineId: string } }>('/projects/:projectId/baselines/:baselineId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user, req.params.projectId, 'admin');
+    await checkWritable(deps.db, await projectAccess(deps.db, user, req.params.projectId, 'admin'));
     const r = await deps.db.query('delete from baselines where id = $1 and project_id = $2', [req.params.baselineId, req.params.projectId]);
     if (!r.rowCount) throw notFound('baseline_not_found');
     await announce(req.params.projectId, user, [], true, clientOf(req));
@@ -361,7 +365,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   // ---- summary text and activity ----
   app.put<P>('/projects/:projectId/summary', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user, req.params.projectId, 'editor');
+    await checkWritable(deps.db, await projectAccess(deps.db, user, req.params.projectId, 'editor'));
     const t = z.string().max(10_000);
     const body = parse(z.object({ narrative: t, achievements: t, nextSteps: t, risks: t, decisions: t }).partial(), req.body);
     await deps.db.query(

@@ -122,7 +122,7 @@ const T = {
   },
 } as const;
 
-const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** The link a notification opens: the project, on the item, with its comments for mentions and replies. */
 export function linkFor(appUrl: string, n: { kind: NotificationKind; project_id: string; item_id: string | null }) {

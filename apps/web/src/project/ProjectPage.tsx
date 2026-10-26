@@ -223,6 +223,7 @@ export function ProjectPage() {
           </span>
         )}
       </TopBar>
+      {data.project.readOnly === 'plan' && <div className="notice warn" role="note">{t('readOnlyPlan')}</div>}
       <div className="rail wrap">
         <div className="grp"><span className="lbl">{t('view')}</span>
           <div className="seg">

@@ -12,7 +12,7 @@ users ──https──▶ regional load balancer + firewall (Cloud Armor) ─�
                                                                      │  API, web app, live updates, webhooks
                                                                      ▼
                                                 Cloud SQL Postgres 16 (private address, standby, backups)
-Cloud Scheduler 05:00 Riyadh ──▶ Cloud Run job "wbs-master-digest" (daily notification emails)
+Cloud Scheduler 05:00 Riyadh ──▶ Cloud Run job "wbs-master-digest" (daily emails, trials, renewals)
 GitHub Actions (v* tag) ──keyless──▶ Artifact Registry ──▶ new Cloud Run revision
 ```
 
@@ -23,7 +23,10 @@ GitHub Actions (v* tag) ──keyless──▶ Artifact Registry ──▶ new C
 2. **A domain**, for example `app.wbsmaster.sa`, where you can add DNS records.
 3. **An email address for alerts**, and when you have chosen one, an email provider with SMTP (optional at
    first; without it, notification emails are only written to the log).
-4. On your computer: the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) and
+4. **A Moyasar account** to sell plans (optional at first; without it, trials work and nothing can be
+   bought). From its dashboard you need the secret key, and a webhook to
+   `https://<your domain>/api/billing/moyasar/notify` with a secret token you choose.
+5. On your computer: the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) and
    [Terraform](https://developer.hashicorp.com/terraform/install) 1.6 or later.
 
 ## Set it up (about an hour, most of it waiting)
@@ -41,6 +44,8 @@ gcloud storage buckets update gs://wbs-master-prod-tfstate --versioning
 cd infra
 cp terraform.tfvars.example terraform.tfvars   # edit: project_id, domain, alert_email, mail_from
 export TF_VAR_smtp_url='smtps://user:password@smtp.example.sa:465'   # optional, keeps it out of files
+export TF_VAR_moyasar_secret_key='sk_live_…'          # optional: selling plans
+export TF_VAR_moyasar_webhook_secret='…'               # the webhook's secret token in Moyasar
 
 # 3. create everything (the first run takes 15–20 minutes, mostly the database)
 terraform init -backend-config="bucket=wbs-master-prod-tfstate"
@@ -68,6 +73,8 @@ Then:
 | Release | Tag `v1.2.3` and approve the *Deploy* run. Cloud Run keeps earlier revisions; roll back with `gcloud run services update-traffic wbs-master --to-revisions=<rev>=100 --region=me-central2`. |
 | Change size or settings | Edit `terraform.tfvars` (for example `min_instances = 2`, `db_tier`), then `terraform apply`. |
 | Email | Set `TF_VAR_smtp_url` and `terraform apply`; new instances pick it up. |
+| Payments | Set `TF_VAR_moyasar_secret_key` and `TF_VAR_moyasar_webhook_secret`, and `seller_name`, `seller_name_ar`, `seller_address`, `seller_cr` in `terraform.tfvars`, then `terraform apply`. |
+| VAT registration | Once registered, set `seller_vat_number` and `terraform apply`: new invoices add 15% VAT and the ZATCA QR code. |
 | Restore the database | Cloud SQL → Backups (daily, kept 30 days), or point-in-time recovery to any moment in the last 7 days. Restore into a new instance first and check it. |
 | Logs and errors | Cloud Logging, filtered to the `wbs-master` Cloud Run service. Load balancer logs show blocked requests. |
 | Alerts | Email to `alert_email` when the health check fails from several places for 5 minutes. |

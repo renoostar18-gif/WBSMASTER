@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { type AppDeps, parse, requireUser, setSessionCookie } from '../app.js';
 import { createSession } from '../auth.js';
+import { checkRoomForMember } from '../billing.js';
 import { tx } from '../db.js';
 import { ApiError, badRequest, forbidden, notFound } from '../errors.js';
 import { orgAccess } from '../permissions.js';
@@ -148,6 +149,7 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
         const member = u ? (await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [who.orgId, u.id])).rowCount : 0;
         if (!member && !who.autoJoin) throw new ApiError(403, 'sso_not_member');
         if (!u) u = (await c.query<{ id: string }>('insert into users (email, name) values ($1, $2) returning id', [who.email, who.name])).rows[0]!;
+        if (!member) await checkRoomForMember(c, who.orgId);
         if (!member) await c.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'member') on conflict do nothing", [who.orgId, u.id]);
         return u.id;
       });
