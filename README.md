@@ -12,10 +12,10 @@ The product specification (requirements, business rules, data dictionary, Excel 
 | --- | --- |
 | `packages/engine` | Calculation engine: WBS codes, status, health, roll-ups, working-day calendars, Saudi holidays, dependencies, auto-schedule, critical path, baselines, report data, Excel import parsing and the connected workbook (export, re-import, change preview). Pure TypeScript with no dependencies; runs in the browser and on the server. |
 | `apps/api` | HTTP API (Fastify + PostgreSQL): sign-up and sign-in, organisations and roles, plan limits, calendars, projects, WBS edits through the engine, baselines, summary text, activity history. |
-
 | `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
+| `infra` | Terraform for production on Google Cloud, Dammam (me-central2): Cloud Run, Cloud SQL, regional HTTPS load balancer with Cloud Armor, secrets, scheduler, alerts, keyless deploys. See [infra/README.md](infra/README.md). |
 
-Coming next: `infra` (Terraform for Google Cloud Dammam) and billing (KSA payment gateway, ZATCA e-invoicing).
+Coming next: billing (KSA payment gateway, ZATCA e-invoicing).
 
 ## Develop
 
@@ -141,8 +141,11 @@ as files; an import becomes ordinary editing operations.
 - **Re-import** that workbook to bring Excel edits back: the app lists what changed, added and
   removed before applying, and one Undo reverses it all.
 
-Production: `pnpm build`, then run `node apps/api/dist/server.js` with `WEB_DIST=apps/web/dist`;
-the API serves the web app and migrates the database on start.
+Production: `docker build -t wbs-master .` gives one image that serves the API and the web app on port
+8080 and migrates the database on start (several instances may start together: migrations take a lock,
+and live updates are shared through Postgres). Releases go to Google Cloud with the *Deploy* workflow;
+setting up the hosting is in [infra/README.md](infra/README.md). Without Docker: `pnpm build`, then
+`node apps/api/dist/server.js` with `WEB_DIST=apps/web/dist`.
 
 ## API overview
 
