@@ -436,3 +436,10 @@ h4.sub { margin: 4px 0 0; font-size: 11px; text-transform: uppercase; letter-spa
 .hook-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
 .hook-head code { font-family: var(--f-mono); font-size: 12.5px; overflow-wrap: anywhere; }
 .org-h { margin: 4px 0 -6px; font-size: 13px; }
+
+/* ---- single sign-on ---- */
+.sub-h { margin: 6px 0 0; font-size: 13px; }
+.domains { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.domains li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; }
+.domains li > code:first-child { font-family: var(--f-mono); font-weight: 600; }
+code.record { font-family: var(--f-mono); font-size: 12px; background: var(--bg); border: 1px solid var(--line2); border-radius: 4px; padding: 2px 6px; overflow-wrap: anywhere; user-select: all; }

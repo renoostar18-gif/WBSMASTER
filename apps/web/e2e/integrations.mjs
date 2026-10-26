@@ -31,7 +31,7 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 
 await page.goto(BASE);
-await page.getByRole('link', { name: 'API & webhooks' }).click();
+await page.getByRole('link', { name: 'Settings' }).click();
 await page.getByRole('heading', { name: 'API keys' }).waitFor();
 
 // create a key, see it once, use it

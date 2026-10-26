@@ -21,6 +21,10 @@ export interface Config {
   trustProxy: boolean;
   /** Allow webhooks to private and local addresses (development and tests only). */
   webhookAllowPrivate: boolean;
+  /** Encrypts secrets kept in the database (SSO client secrets). Without it in production, SSO cannot be set up. */
+  secretKey: string | null;
+  /** Allow SSO providers on plain http (tests and local development only). */
+  ssoAllowHttp: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -39,5 +43,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     authRateLimit: Number(env.AUTH_RATE_LIMIT ?? 20),
     trustProxy: env.TRUST_PROXY === '1',
     webhookAllowPrivate: env.WEBHOOK_ALLOW_PRIVATE ? env.WEBHOOK_ALLOW_PRIVATE === '1' : env.NODE_ENV !== 'production',
+    secretKey: secretKey(env),
+    ssoAllowHttp: env.NODE_ENV !== 'production' && env.SSO_ALLOW_HTTP === '1',
   };
+}
+
+function secretKey(env: NodeJS.ProcessEnv): string | null {
+  if (env.SECRET_KEY && env.SECRET_KEY.length >= 32) return env.SECRET_KEY;
+  if (env.NODE_ENV === 'production') return null;
+  return 'development-only-secret-key-do-not-use-in-production';
 }

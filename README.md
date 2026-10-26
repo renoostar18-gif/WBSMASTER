@@ -15,7 +15,7 @@ The product specification (requirements, business rules, data dictionary, Excel 
 | `apps/web` | Web app (React + Vite): sign-in, projects, Table, Chart, Gantt and Summary views, baselines, activity history, inspector, keyboard shortcuts, undo/redo, project settings, live co-editing with presence. English and Arabic (right-to-left, including a mirrored Gantt), light and dark themes. Edits apply instantly in the browser with the engine, then save to the API. |
 | `infra` | Terraform for production on Google Cloud, Dammam (me-central2): Cloud Run, Cloud SQL, regional HTTPS load balancer with Cloud Armor, secrets, scheduler, alerts, keyless deploys. See [infra/README.md](infra/README.md). |
 
-Coming next: single sign-on (Entra ID, Google) and billing (KSA payment gateway, ZATCA e-invoicing).
+Coming next: billing (KSA payment gateway, ZATCA e-invoicing).
 
 ## Develop
 
@@ -43,7 +43,9 @@ Browser tests (API and web app running): `node apps/web/e2e/smoke.mjs` (one user
 `node apps/web/e2e/portfolio.mjs` (portfolio views; comments, mentions and resolving between two people;
 it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
 `node apps/web/e2e/notifications.mjs` (a mention and an assignment reach the bell and open the item) and
-`node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`). Set `CHROMIUM_PATH`
+`node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`) and
+`node apps/web/e2e/sso.mjs` (single sign-on with a fake identity provider; the API needs `SSO_ALLOW_HTTP=1`
+and `APP_URL` set to the web address). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
 
 ## Portfolio and comments
@@ -98,6 +100,33 @@ description at `/api/openapi.json`.
   delivery; `WEBHOOK_ALLOW_PRIVATE=1` allows local addresses (the default outside production). The API
   process delivers them; with several instances each claims different deliveries.
 
+## Single sign-on
+
+Business plan (spec 7.2). Each organisation connects one OpenID Connect provider (Microsoft Entra ID,
+Google Workspace, or another provider) in Settings → Single sign-on:
+
+1. **Prove the email domains.** Add a domain and publish the TXT record shown
+   (`wbs-master-verification=…`), then select Verify. Personal email domains (gmail.com, outlook.com
+   and so on) are refused. Only one organisation can prove a domain, and only proved domains are used
+   for SSO, so an organisation cannot take over another company's people.
+2. **Connect the provider.** Register the redirect address shown (`<APP_URL>/api/auth/sso/callback`) in
+   the provider. Then enter the tenant ID (Entra ID) or issuer address, the client ID and the client
+   secret. The secret is stored encrypted with `SECRET_KEY` (AES-256-GCM).
+3. **Choose:**
+   - whether people from the proved domains join automatically on their first sign-in;
+   - whether SSO is required, which turns password sign-in and sign-up off for those domains.
+
+On the sign-in page, "Sign in with your company account" asks for the work email and sends the person
+to their organisation's provider (authorization code with PKCE, state and nonce). On the way back the
+ID token is checked: signature, issuer, audience and nonce. The email's domain must be one the
+organisation proved; for Google, the account must belong to that Workspace (`hd`). An existing account
+with the same email is signed in, not duplicated.
+
+| Setting | Meaning |
+| --- | --- |
+| `SECRET_KEY` | 32+ characters; encrypts SSO client secrets. Without it in production, SSO is unavailable (the rest works). |
+| `SSO_ALLOW_HTTP=1` | Allows a provider on plain http (local tests only; ignored in production). |
+
 ## Excel
 
 Excel runs in the browser (ExcelJS, loaded only when used), so files never pass through the server
@@ -136,6 +165,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | Portfolio | `GET /orgs/:orgId/portfolio` (`?asOf=YYYY-MM-DD` for one status date across projects); Team and Business plans |
 | API keys | `GET/POST /me/api-keys`, `DELETE /me/api-keys/:id` (signed-in sessions only) |
 | Webhooks | `GET/POST /orgs/:orgId/webhooks`, `PATCH/DELETE .../:id`, `POST .../:id/test`, `GET .../:id/deliveries` |
+| Single sign-on | `GET/PUT/DELETE /orgs/:orgId/sso`, `POST /orgs/:orgId/sso/domains`, `POST .../domains/:domain/verify`, `DELETE .../domains/:domain`; `POST /auth/sso/start` (`{ email }` → `{ url }`), `GET /auth/sso/callback` |
 | Notifications | `GET /notifications`, `GET /notifications/unread`, `POST /notifications/read` (`{ ids }`, or all); `PATCH /me` with `notifyEmail`: `instant`, `daily` or `off` |
 | Comments | `GET/POST /projects/:id/comments`, `PATCH/DELETE /projects/:id/comments/:cid`, `POST .../:cid/resolve`, `GET /projects/:id/people` (who can be mentioned) |
 | Live | WebSocket `GET /projects/:id/live`: `presence` (who is viewing, what each has selected) and `changed` (a new version was saved) messages; send `{ "type": "select", "itemId": … }` to share a selection. One API process holds the connections; several instances will need Redis pub/sub. |
