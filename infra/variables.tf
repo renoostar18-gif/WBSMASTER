@@ -56,6 +56,50 @@ variable "smtp_url" {
   sensitive   = true
 }
 
+variable "moyasar_secret_key" {
+  description = "Moyasar secret API key (sk_live_…). Empty: paid plans cannot be bought; trials still work."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "moyasar_webhook_secret" {
+  description = "The secret token set on the Moyasar webhook (Moyasar dashboard → Settings → Webhooks)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "seller_name" {
+  description = "Seller name on invoices (the registered company name)."
+  type        = string
+  default     = ""
+}
+
+variable "seller_name_ar" {
+  description = "Seller name in Arabic on invoices."
+  type        = string
+  default     = ""
+}
+
+variable "seller_address" {
+  description = "Seller address on invoices."
+  type        = string
+  default     = ""
+}
+
+variable "seller_cr" {
+  description = "Commercial registration number on invoices."
+  type        = string
+  default     = ""
+}
+
+variable "seller_vat_number" {
+  description = "VAT registration number. Leave empty while not VAT registered: invoices then have no VAT. Set it once registered to add 15% VAT and the ZATCA QR code."
+  type        = string
+  default     = ""
+}
+
 variable "alert_email" {
   description = "Who is emailed when the app is down."
   type        = string

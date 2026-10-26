@@ -16,6 +16,8 @@ import { type Mailer, createMailer } from './mailer.js';
 import { RateLimiter } from './ratelimit.js';
 import { integrationRoutes } from './routes/integrations.js';
 import { ssoRoutes } from './routes/sso.js';
+import { billingRoutes } from './routes/billing.js';
+import type { PaymentGateway } from './moyasar.js';
 import { WebhookDispatcher } from './webhooks.js';
 import { OpError } from './ops.js';
 import { authRoutes } from './routes/auth.js';
@@ -48,6 +50,8 @@ export interface AppDeps {
   resolveTxt?: (name: string) => Promise<string[]>;
   /** Webhook delivery worker; started by the server, not in tests (which deliver on demand). */
   webhooks?: WebhookDispatcher;
+  /** Payment gateway; Moyasar from the config when not given (tests give a fake). */
+  gateway?: PaymentGateway;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -110,6 +114,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(notificationRoutes(deps), { prefix: '/api' });
   app.register(integrationRoutes(deps), { prefix: '/api' });
   app.register(ssoRoutes(deps), { prefix: '/api' });
+  app.register(billingRoutes(deps), { prefix: '/api' });
   app.get('/api/openapi.json', async () => openApi);
   const docs = renderApiDocs();
   app.get('/api/docs', async (_req, reply) => reply.type('text/html; charset=utf-8').send(docs));

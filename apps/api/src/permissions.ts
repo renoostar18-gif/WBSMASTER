@@ -74,4 +74,20 @@ export async function projectAccess(db: Queryable, who: Caller, projectId: strin
   return { projectId, orgId: row.org_id, plan: row.plan, orgRole: row.org_role, role };
 }
 
+/**
+ * After a downgrade, an organisation can have more active projects than its plan allows. Nothing is
+ * deleted: the oldest ones up to the limit stay editable and the rest become read-only (spec 3.4).
+ */
+export async function overPlanLimit(db: Queryable, orgId: string, projectId: string, plan: Plan): Promise<boolean> {
+  const limit = PLANS[plan].activeProjects;
+  if (!Number.isFinite(limit)) return false;
+  const r = await db.query<{ id: string }>(
+    'select id from projects where org_id = $1 and archived_at is null order by created_at, id limit $2', [orgId, limit]);
+  return !r.rows.some(x => x.id === projectId);
+}
+
+export async function checkWritable(db: Queryable, acc: ProjectAccess): Promise<void> {
+  if (await overPlanLimit(db, acc.orgId, acc.projectId, acc.plan)) throw forbidden('plan_project_read_only');
+}
+
 export const atLeast = (role: ProjectRole, min: ProjectRole) => PROJECT_RANK[role] >= PROJECT_RANK[min];

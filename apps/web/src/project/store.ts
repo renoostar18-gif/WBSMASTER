@@ -10,6 +10,8 @@ export type Role = 'admin' | 'editor' | 'commenter' | 'viewer';
 export interface ProjectPayload {
   project: {
     id: string; orgId: string; name: string; version: number; calendarId: string | null; locale: string; archived: boolean;
+    /** Why the project cannot be edited by anyone: archived, or beyond the plan's active projects after a downgrade. */
+    readOnly?: 'archived' | 'plan' | null;
     settings: ProjectSettings;
   };
   role: Role;
@@ -265,7 +267,7 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
     data, loadError, save, items, model, computed, calendar, saveSummary, baselines, activity,
     run, undo, redo, updateProject, reload: load, viewers, shareSelection, commentsTick,
     canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0,
-    canEdit: data ? data.role === 'admin' || data.role === 'editor' : false,
+    canEdit: data ? (data.role === 'admin' || data.role === 'editor') && !data.project.readOnly : false,
     isAdmin: data?.role === 'admin',
     canComment: data ? data.role !== 'viewer' : false,
   };

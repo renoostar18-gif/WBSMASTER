@@ -25,6 +25,18 @@ export interface Config {
   secretKey: string | null;
   /** Allow SSO providers on plain http (tests and local development only). */
   ssoAllowHttp: boolean;
+  /** Moyasar payment gateway. Unset: paid plans cannot be bought (trials still work). */
+  moyasar: { secretKey: string; webhookSecret: string | null; apiUrl: string } | null;
+  /** The seller printed on invoices. With a VAT number, invoices become tax invoices with 15% VAT and the ZATCA QR code. */
+  seller: Seller;
+}
+
+export interface Seller {
+  name: string;
+  nameAr: string;
+  address: string;
+  cr: string | null;
+  vatNumber: string | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -45,6 +57,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webhookAllowPrivate: env.WEBHOOK_ALLOW_PRIVATE ? env.WEBHOOK_ALLOW_PRIVATE === '1' : env.NODE_ENV !== 'production',
     secretKey: secretKey(env),
     ssoAllowHttp: env.NODE_ENV !== 'production' && env.SSO_ALLOW_HTTP === '1',
+    moyasar: env.MOYASAR_SECRET_KEY ? {
+      secretKey: env.MOYASAR_SECRET_KEY,
+      webhookSecret: env.MOYASAR_WEBHOOK_SECRET || null,
+      apiUrl: (env.MOYASAR_API_URL ?? 'https://api.moyasar.com/v1').replace(/\/$/, ''),
+    } : null,
+    seller: {
+      name: env.SELLER_NAME ?? 'WBS Master',
+      nameAr: env.SELLER_NAME_AR ?? env.SELLER_NAME ?? 'WBS Master',
+      address: env.SELLER_ADDRESS ?? 'Riyadh, Saudi Arabia',
+      cr: env.SELLER_CR || null,
+      vatNumber: env.SELLER_VAT_NUMBER || null,
+    },
   };
 }
 

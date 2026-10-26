@@ -178,6 +178,14 @@ export function SettingsPage() {
       <div className="view">
         <div className="rep">
           <div className="rep-head"><div><h1>{t('accountSettings')}</h1></div></div>
+          {orgs.some(o => o.role === 'owner') && (
+            <div className="sec">
+              <h2>{t('billing')}</h2>
+              <div className="row-form">{orgs.filter(o => o.role === 'owner').map(o => (
+                <Link key={o.id} className="btn" to={`/billing/${o.id}`}><span dir="auto">{o.name}</span> · {t(`plan_${o.plan}`)}</Link>
+              ))}</div>
+            </div>
+          )}
           <ApiKeys orgs={orgs} />
           {admin.map(o => (
             <div key={o.id}>

@@ -3,6 +3,7 @@ import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from 'react-rout
 import { DEMO } from './api.js';
 import { I18nProvider } from './i18n.js';
 import { AuthPage } from './pages/Auth.js';
+import { BillingPage } from './pages/Billing.js';
 import { PortfolioPage } from './pages/Portfolio.js';
 import { ProjectsPage } from './pages/Projects.js';
 import { SettingsPage } from './pages/Settings.js';
@@ -38,6 +39,7 @@ export function App() {
               <Route path="/p/:projectId" element={<Private><ProjectPage /></Private>} />
               <Route path="/portfolio/:orgId" element={<Private><PortfolioPage /></Private>} />
               <Route path="/settings" element={<Private><SettingsPage /></Private>} />
+              <Route path="/billing/:orgId" element={<Private><BillingPage /></Private>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
