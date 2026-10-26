@@ -1,0 +1,5 @@
+project_id  = "wbs-master-prod"
+domain      = "app.wbsmaster.sa"
+alert_email = "ops@wbsmaster.sa"
+mail_from   = "WBS Master <no-reply@wbsmaster.sa>"
+# smtp_url  = "smtps://user:password@smtp.example.sa:465"   # better: TF_VAR_smtp_url in the shell

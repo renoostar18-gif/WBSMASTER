@@ -62,19 +62,40 @@ jobs:
           cat /tmp/api.log; exit 1
       - name: Browser smoke test
         working-directory: apps/web
-        run: WEB_URL=http://localhost:3000 node e2e/smoke.mjs
+        run: ../../scripts/ci-e2e.sh "Browser smoke test" env WEB_URL=http://localhost:3000 node e2e/smoke.mjs
       - name: Two-person live editing test
         working-directory: apps/web
-        run: WEB_URL=http://localhost:3000 node e2e/collab.mjs
+        run: ../../scripts/ci-e2e.sh "Two-person live editing" env WEB_URL=http://localhost:3000 node e2e/collab.mjs
       - name: Excel round-trip test
         working-directory: apps/web
-        run: WEB_URL=http://localhost:3000 node e2e/excel.mjs
+        run: ../../scripts/ci-e2e.sh "Excel round trip" env WEB_URL=http://localhost:3000 node e2e/excel.mjs
       - name: Portfolio and comments test
         working-directory: apps/web
-        run: WEB_URL=http://localhost:3000 node e2e/portfolio.mjs
+        run: ../../scripts/ci-e2e.sh "Portfolio and comments" env WEB_URL=http://localhost:3000 node e2e/portfolio.mjs
       - name: Notifications test
         working-directory: apps/web
-        run: WEB_URL=http://localhost:3000 node e2e/notifications.mjs
+        run: ../../scripts/ci-e2e.sh "Notifications" env WEB_URL=http://localhost:3000 node e2e/notifications.mjs
       - name: API keys and webhooks test
         working-directory: apps/web
-        run: WEB_URL=http://localhost:3000 node e2e/integrations.mjs
+        run: ../../scripts/ci-e2e.sh "API keys and webhooks" env WEB_URL=http://localhost:3000 node e2e/integrations.mjs
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        run: docker build -t wbs-master:ci .
+
+  infra:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
