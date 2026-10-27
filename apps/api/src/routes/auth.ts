@@ -5,6 +5,7 @@ import { type AppDeps, SESSION_COOKIE, parse, requireUser, setSessionCookie } fr
 import { createSession, deleteSession, hashPassword, verifyPassword } from '../auth.js';
 import { type Tx, tx } from '../db.js';
 import { ApiError } from '../errors.js';
+import { RateLimiter } from '../ratelimit.js';
 import { requireSsoFor } from './sso.js';
 import { acceptInvitation } from '../invites.js';
 
@@ -31,8 +32,13 @@ export async function createOrganisation(c: Tx, name: string, ownerId: string, t
   return orgId;
 }
 
+/** Checked against when the email is unknown, so a wrong email takes as long as a wrong password. */
+const NO_USER_HASH = hashPassword('no such user, no such password');
+
 export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   const now = () => deps.today?.() ?? new Date();
+  // guessing one account's password from many addresses: a pause after too many wrong ones
+  const failures = new RateLimiter(deps.config.loginFailureLimit, 15 * 60_000);
 
   app.post('/auth/signup', async (req, reply) => {
     const body = parse(z.object({
@@ -68,8 +74,15 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     const r = await deps.db.query<{ id: string; password_hash: string | null; name: string }>(
       'select id, password_hash, name from users where lower(email) = $1', [body.email]);
     const u = r.rows[0];
-    // same answer for unknown email and wrong password
-    if (!u || !(await verifyPassword(body.password, u.password_hash))) throw new ApiError(401, 'invalid_credentials');
+    const key = `email:${body.email}`;
+    const wait = failures.over(key);
+    if (wait) { reply.header('retry-after', wait); throw new ApiError(429, 'rate_limited'); }
+    // same answer, and about the same time, for an unknown email and a wrong password
+    const ok = await verifyPassword(body.password, u?.password_hash ?? await NO_USER_HASH);
+    if (!u || !u.password_hash || !ok) {
+      failures.hit(key);
+      throw new ApiError(401, 'invalid_credentials');
+    }
     setSessionCookie(reply, await createSession(deps.db, u.id, deps.config.sessionDays), deps);
     return { user: { id: u.id, email: body.email, name: u.name } };
   });
@@ -84,7 +97,8 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     const user = requireUser(req);
     const orgs = await deps.db.query(
       `select o.id, o.name, o.plan, m.role from memberships m join organisations o on o.id = m.org_id
-        where m.user_id = $1 order by o.created_at`, [user.id]);
+        where m.user_id = $1 and ($2::uuid is null or o.id = $2) order by o.created_at`, [user.id, user.apiKey?.orgId ?? null]);
+    // an API key only sees its own organisation
     return { user, organisations: orgs.rows };
   });
 

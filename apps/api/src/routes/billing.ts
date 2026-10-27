@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { type AppDeps, parse, requireUser } from '../app.js';
 import {
-  BillingRuleError, type BillingContext, type InvoiceRow, MAX_SEATS, TRIAL_DAYS, VAT_RATE, billableMembers, loadBillingState, quote,
+  BillingRuleError, type BillingContext, INVOICE_CSP, type InvoiceRow, MAX_SEATS, TRIAL_DAYS, VAT_RATE, billableMembers, loadBillingState, quote,
   renderInvoice, seatPrice, settleInvoice, syncPlan,
 } from '../billing.js';
 import { tx } from '../db.js';
@@ -174,6 +174,7 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     const inv = (await deps.db.query<InvoiceRow>("select * from billing_invoices where id = $1 and org_id = $2 and status = 'paid'",
       [req.params.invoiceId, req.params.orgId])).rows[0];
     if (!inv) throw notFound('invoice_not_found');
-    return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').send(await renderInvoice(inv));
+    return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').header('content-security-policy', INVOICE_CSP)
+      .send(await renderInvoice(inv));
   });
 };

@@ -17,9 +17,15 @@ export interface Config {
   /** Requests per minute for each API key, and sign-in or sign-up attempts per minute from one address. */
   apiRateLimit: number;
   authRateLimit: number;
-  /** Behind a load balancer (Cloud Run): take the client address from X-Forwarded-For. */
-  trustProxy: boolean;
-  /** Allow webhooks to private and local addresses (development and tests only). */
+  /** Wrong passwords for one account in 15 minutes before its sign-in pauses (whatever the address). */
+  loginFailureLimit: number;
+  /**
+   * Behind a load balancer (Cloud Run): take the client address from X-Forwarded-For. `TRUST_PROXY=1`
+   * trusts every hop (the left-most address, which a client can set itself); a number of 2 or more
+   * trusts that many hops from the right, so a client cannot choose its own address.
+   */
+  trustProxy: boolean | number;
+  /** Allow webhooks and SSO providers on private and local addresses (development and tests only). */
   webhookAllowPrivate: boolean;
   /** Encrypts secrets kept in the database (SSO client secrets). Without it in production, SSO cannot be set up. */
   secretKey: string | null;
@@ -55,7 +61,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mailFrom: env.MAIL_FROM ?? 'WBS Master <no-reply@wbs-master.example>',
     apiRateLimit: Number(env.API_RATE_LIMIT ?? 300),
     authRateLimit: Number(env.AUTH_RATE_LIMIT ?? 20),
-    trustProxy: env.TRUST_PROXY === '1',
+    loginFailureLimit: Number(env.LOGIN_FAILURE_LIMIT ?? 10),
+    trustProxy: env.TRUST_PROXY === '1' ? true : Number(env.TRUST_PROXY) >= 2 ? Number(env.TRUST_PROXY) : false,
     webhookAllowPrivate: env.WEBHOOK_ALLOW_PRIVATE ? env.WEBHOOK_ALLOW_PRIVATE === '1' : env.NODE_ENV !== 'production',
     secretKey: secretKey(env),
     ssoAllowHttp: env.NODE_ENV !== 'production' && env.SSO_ALLOW_HTTP === '1',

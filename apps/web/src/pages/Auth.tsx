@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../api.js';
 import { useI18n } from '../i18n.js';
+import { safeNext } from '../next.js';
 import { useSession } from '../session.js';
 import { TopBar } from '../ui.js';
 
@@ -15,7 +16,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
   const ssoError = params.get('sso_error');
   // where to go afterwards (an invitation page), only within this site
   const next = params.get('next');
-  const after = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const after = safeNext(next);
   const [err, setErr] = useState(() => (ssoError ? error(ssoError) : ''));
   const [busy, setBusy] = useState(false);
   const [sso, setSso] = useState(!!ssoError);

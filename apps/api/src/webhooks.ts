@@ -1,6 +1,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { privateAddress, publicFetch } from './netguard.js';
 import type { Queryable } from './db.js';
 
 /** Events a webhook can subscribe to (spec 7.2). */
@@ -21,22 +22,10 @@ export function sign(secret: string, body: string, t = Math.floor(Date.now() / 1
   return `t=${t},v1=${createHmac('sha256', secret).update(`${t}.${body}`).digest('hex')}`;
 }
 
-function privateAddress(ip: string): boolean {
-  const v4 = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-  if (isIP(v4) === 4) {
-    const [a, b] = v4.split('.').map(Number) as [number, number];
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
-  }
-  const s = ip.toLowerCase();
-  return s === '::' || s === '::1' || s.startsWith('fc') || s.startsWith('fd') || s.startsWith('fe8') || s.startsWith('fe9') ||
-    s.startsWith('fea') || s.startsWith('feb') || s.startsWith('ff');
-}
-
 /**
  * A webhook may only call a public HTTPS address, so it cannot be used to reach
- * the hosting network (server-side request forgery). Checked when saved and
- * again before every delivery, because DNS answers can change.
+ * the hosting network (server-side request forgery). Checked when saved, before every
+ * delivery, and when the connection is made, because DNS answers can change.
  * Returns an error code, or null when the address is allowed.
  */
 export async function checkWebhookUrl(raw: string, allowPrivate: boolean): Promise<string | null> {
@@ -69,7 +58,8 @@ type Fetch = typeof fetch;
 
 /** Send what is due: each delivery once, retried later on failure. Returns how many were attempted. */
 export async function deliverDue(db: Queryable, opts: { allowPrivate: boolean; fetch?: Fetch; limit?: number }): Promise<number> {
-  const doFetch = opts.fetch ?? fetch;
+  // outside development, connect only to public addresses, checked again as the connection is made
+  const doFetch = opts.fetch ?? (opts.allowPrivate ? fetch : publicFetch);
   // claim due deliveries so two workers never send the same one
   const due = await db.query<{ id: string; event: string; payload: unknown; attempts: number; url: string; secret: string; created_at: Date }>(
     `update webhook_deliveries d set next_attempt_at = now() + interval '5 minutes'
