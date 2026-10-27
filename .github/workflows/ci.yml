@@ -92,6 +92,9 @@ jobs:
       - name: Invitations test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Invitations" env WEB_URL=http://localhost:3000 node e2e/invites.mjs
+      - name: Public site test
+        working-directory: apps/web
+        run: ../../scripts/ci-e2e.sh "Public site" env WEB_URL=http://localhost:3000 node e2e/site.mjs
 
   image:
     runs-on: ubuntu-latest
