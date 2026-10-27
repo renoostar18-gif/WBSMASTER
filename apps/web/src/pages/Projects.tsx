@@ -56,8 +56,8 @@ export function ProjectsPage() {
             {org && <span className="crumb">{org.name}</span>}
             {org && <span className="badge">{t(`plan_${org.plan}` as MessageKey)}</span>}
             {org && <Link className="btn" to={`/portfolio/${org.id}`} style={{ marginInlineStart: 'auto' }}>{Icon.portfolio} {t('portfolio')}</Link>}
-            {import.meta.env.MODE !== 'demo' && org && org.role !== 'guest' && <Link className="btn" to={`/members/${org.id}`}>{t('members')}</Link>}
-            {import.meta.env.MODE !== 'demo' && org?.role === 'owner' && <Link className="btn" to={`/billing/${org.id}`}>{t('billing')}</Link>}
+            {org && org.role !== 'guest' && <Link className="btn" to={`/members/${org.id}`}>{t('members')}</Link>}
+            {org?.role === 'owner' && <Link className="btn" to={`/billing/${org.id}`}>{t('billing')}</Link>}
             {import.meta.env.MODE !== 'demo' && <Link className="btn" to="/settings">{Icon.gear} {t('accountSettings')}</Link>}
           </div>
           <form className="newp" onSubmit={create}>

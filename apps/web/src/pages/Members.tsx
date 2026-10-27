@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError, api } from '../api.js';
+import { ApiError, DEMO, api } from '../api.js';
 import { useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { TopBar, useToast } from '../ui.js';
@@ -64,7 +64,7 @@ export function MembersPage() {
 
   return (
     <div className="shell">
-      <TopBar><Link className="btn" to="/">{t('projects')}</Link><Link className="btn" to="/settings">{t('accountSettings')}</Link></TopBar>
+      <TopBar><Link className="btn" to="/">{t('projects')}</Link>{!DEMO && <Link className="btn" to="/settings">{t('accountSettings')}</Link>}</TopBar>
       <div className="view">
         <div className="rep">
           <div className="rep-head"><div><h1>{t('members')}</h1><div className="crumb" dir="auto">{org?.name}</div></div>

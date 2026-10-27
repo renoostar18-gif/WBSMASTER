@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ApiError, api } from '../api.js';
+import { ApiError, DEMO, api } from '../api.js';
 import { type MessageKey, useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
 import { TopBar, useToast } from '../ui.js';
@@ -89,7 +89,9 @@ export function BillingPage() {
   async function checkout(body: Record<string, unknown>) {
     setBusy(true);
     try {
-      const r = await api.post<{ url: string }>(`/orgs/${orgId}/billing/checkout`, body);
+      const r = await api.post<{ url: string | null }>(`/orgs/${orgId}/billing/checkout`, body);
+      // the demo has no payment page: it is paid at once
+      if (!r.url) { await Promise.all([load(), refresh()]); setSearch({ payment: 'paid' }, { replace: true }); setBusy(false); return; }
       window.location.assign(r.url);
     } catch (x) {
       toast(error(x instanceof ApiError ? x.code : 'server_error'));
@@ -116,7 +118,7 @@ export function BillingPage() {
     } catch (x) { toast(error(x instanceof ApiError ? x.code : 'server_error')); }
   }
 
-  const top = <TopBar><Link className="btn" to="/">{t('projects')}</Link><Link className="btn" to="/settings">{t('accountSettings')}</Link></TopBar>;
+  const top = <TopBar><Link className="btn" to="/">{t('projects')}</Link>{!DEMO && <Link className="btn" to="/settings">{t('accountSettings')}</Link>}</TopBar>;
   if (!b) return <div className="shell">{top}<div className="view"><div className="rep">{loadErr ? <p className="err" role="alert">{loadErr}</p> : <p className="hint">{t('loading')}</p>}</div></div></div>;
 
   const pending = b.invoices.find(i => i.status === 'pending' && i.payUrl);
@@ -231,7 +233,7 @@ export function BillingPage() {
                     <td className="nw">{long(i.paidAt!.slice(0, 10))}</td>
                     <td>{t(`kind_${i.kind}`, { plan: t(`plan_${i.plan}`), n: i.seats })} · {long(i.periodStart)} – {long(lastDay(i.periodEnd))}</td>
                     <td className="nw">{money(i.total)}</td>
-                    <td><a className="btn sm" href={`/api/orgs/${orgId}/billing/invoices/${i.id}`} target="_blank" rel="noreferrer">{t('openInvoice')}</a></td>
+                    <td>{!DEMO && <a className="btn sm" href={`/api/orgs/${orgId}/billing/invoices/${i.id}`} target="_blank" rel="noreferrer">{t('openInvoice')}</a>}</td>
                   </tr>
                 ))}</tbody>
               </table></div>
