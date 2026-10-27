@@ -6,6 +6,7 @@ import { ApiError } from './errors.js';
 import type { Mailer } from './mailer.js';
 import type { PaymentGateway } from './moyasar.js';
 import { esc } from './notify.js';
+import { SYSTEM, audit } from './audit.js';
 import { ANNUAL_DISCOUNT, type Plan, PLANS, SAR_PER_USD } from './plans.js';
 
 /**
@@ -184,11 +185,18 @@ export async function loadBillingState(q: Queryable, orgId: string, today: strin
   return comp ? { ...s, plan: comp, seats: null, trial: null, comped: true } : s;
 }
 
-/** Bring organisations.plan and seats in line with what is paid for today. */
+/** Bring organisations.plan and seats in line with what is paid for today. A change of plan goes in the audit log. */
 export async function syncPlan(q: Queryable, orgId: string, today: string): Promise<BillingState> {
   const s = await loadBillingState(q, orgId, today);
-  await q.query('update organisations set plan = $2, seats = $3, updated_at = now() where id = $1 and (plan <> $2 or seats is distinct from $3)',
+  const r = await q.query<{ old: Plan }>(
+    `update organisations o set plan = $2, seats = $3, updated_at = now()
+       from (select plan as old from organisations where id = $1) x
+      where o.id = $1 and (o.plan <> $2 or o.seats is distinct from $3) returning x.old`,
     [orgId, s.plan, s.seats]);
+  const old = r.rows[0]?.old;
+  if (old && old !== s.plan) {
+    await audit(q, orgId, SYSTEM, 'billing.plan_changed', s.plan, { from: old, to: s.plan, ...(s.trial ? { trial: true } : {}), ...(s.comped ? { comped: true } : {}) });
+  }
   return s;
 }
 
@@ -241,6 +249,8 @@ export async function settleInvoice(ctx: BillingContext, invoiceId: string): Pro
     await c.query("update billing_invoices set status = 'paid', number = $2, paid_at = now(), seller = $3, buyer = $4 where id = $1",
       [invoiceId, n, JSON.stringify(seller), JSON.stringify(buyer)]);
     await c.query('update organisations set trial_ends = least(trial_ends, $2::date) where id = $1 and trial_ends is not null', [row.org_id, today]);
+    await audit(c, row.org_id, SYSTEM, 'billing.payment_received', `INV-${String(n).padStart(6, '0')}`,
+      { invoiceId: invoiceId, total: row.total, currency: row.currency, plan: row.plan, interval: row.interval, seats: row.seats, periodStart: row.period_start, periodEnd: row.period_end });
     await syncPlan(c, row.org_id, today);
     return true;
   });
@@ -266,13 +276,14 @@ export async function runDailyBilling(ctx: BillingContext): Promise<{ settled: n
     }
   }
   let changed = 0;
-  const orgs = await ctx.db.query<{ id: string; plan: Plan }>(
-    "select id, plan from organisations o where plan <> 'free' or trial_ends is not null or comp_plan is not null or exists (select 1 from billing_invoices b where b.org_id = o.id and b.status = 'paid')");
+  const orgs = await ctx.db.query<{ id: string; plan: Plan; deleting: boolean }>(
+    "select id, plan, delete_on is not null as deleting from organisations o where plan <> 'free' or trial_ends is not null or comp_plan is not null or exists (select 1 from billing_invoices b where b.org_id = o.id and b.status = 'paid')");
   let reminders = 0;
   for (const o of orgs.rows) {
     const s = await syncPlan(ctx.db, o.id, today);
     if (s.plan !== o.plan) changed++;
-    reminders += await remind(ctx, o.id, s, today);
+    // no renewal reminders for an organisation waiting to be deleted
+    if (!o.deleting) reminders += await remind(ctx, o.id, s, today);
   }
   return { settled, changed, reminders };
 }

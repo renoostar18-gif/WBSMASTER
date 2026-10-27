@@ -10,6 +10,7 @@ import { tx } from '../db.js';
 import { ApiError, badRequest, conflict, notFound } from '../errors.js';
 import { Moyasar, MoyasarError, invoiceIdsIn, secretMatches } from '../moyasar.js';
 import { orgAccess } from '../permissions.js';
+import { audit, by } from '../audit.js';
 
 type O = { Params: { orgId: string } };
 const choice = z.object({
@@ -96,6 +97,7 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       if (o.trial_ends) throw conflict('trial_used');
       if ((await loadBillingState(c, req.params.orgId, today())).current) throw conflict('trial_paid_plan');
       await c.query('update organisations set trial_plan = $2, trial_ends = $3 where id = $1', [req.params.orgId, plan, ends]);
+      await audit(c, req.params.orgId, by(req), 'billing.trial_started', plan, { ends });
       await syncPlan(c, req.params.orgId, today());
     });
     return { plan, ends };

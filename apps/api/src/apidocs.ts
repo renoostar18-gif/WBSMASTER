@@ -36,6 +36,7 @@ export function renderApiDocs(opts: { fragment?: boolean } = {}): string {
     ['Comments', p => p.includes('/comments')],
     ['Portfolio', p => p.includes('/portfolio')],
     ['Webhooks', p => p.includes('/webhooks')],
+    ['Audit log', p => p.includes('/audit')],
   ];
   const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
   const paths = openApi.paths as unknown as Record<string, Record<string, Op>>;
