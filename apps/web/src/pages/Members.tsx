@@ -19,6 +19,8 @@ export function MembersPage() {
   const org = me?.organisations.find(o => o.id === orgId);
   const myRole = org?.role as Role | undefined;
   const isAdmin = myRole === 'owner' || myRole === 'admin';
+  const isOwner = myRole === 'owner';
+  const deleteOn = org?.deleteOn ?? null;
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [seats, setSeats] = useState<{ used: number; limit: number | null } | null>(null);
@@ -68,11 +70,15 @@ export function MembersPage() {
       <div className="view">
         <div className="rep">
           <div className="rep-head"><div><h1>{t('members')}</h1><div className="crumb" dir="auto">{org?.name}</div></div>
-            {seats && <span className="hint">{seats.limit == null ? t('seatsUsedN', { n: seats.used }) : t('seatsUsedOf', { n: seats.used, limit: seats.limit })}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {seats && <span className="hint">{seats.limit == null ? t('seatsUsedN', { n: seats.used }) : t('seatsUsedOf', { n: seats.used, limit: seats.limit })}</span>}
+              {isAdmin && <Link className="btn" to={`/audit/${orgId}`}>{t('auditLog')}</Link>}
+            </div>
           </div>
           {err && <p className="err" role="alert">{err}</p>}
+          {deleteOn && <DeletionNotice orgId={orgId} deleteOn={deleteOn} />}
 
-          {isAdmin && (
+          {isAdmin && !deleteOn && (
             <div className="sec">
               <h2>{t('invitePeople')}</h2>
               <p className="hint">{t('invitePeopleHint')}</p>
@@ -121,9 +127,9 @@ export function MembersPage() {
                 <thead><tr><th>{t('personName')}</th><th>{t('email')}</th><th>{t('role')}</th><th /></tr></thead>
                 <tbody>{members.map(m => {
                   const self = m.id === me?.user.id;
-                  const canChange = isAdmin && !self && (m.role !== 'owner' || myRole === 'owner');
+                  const canChange = isAdmin && !deleteOn && !self && (m.role !== 'owner' || myRole === 'owner');
                   // the only owner cannot leave (an organisation keeps at least one owner)
-                  const canLeave = self && (m.role !== 'owner' || members.filter(x => x.role === 'owner').length > 1);
+                  const canLeave = self && !deleteOn && (m.role !== 'owner' || members.filter(x => x.role === 'owner').length > 1);
                   return (
                     <tr key={m.id}>
                       <td dir="auto">{m.name}{self && <span className="hint"> · {t('you')}</span>}</td>
@@ -145,8 +151,104 @@ export function MembersPage() {
               </table></div>
             )}
           </div>
+
+          {isOwner && !deleteOn && members && org && (
+            <>
+              <TransferOwnership orgId={orgId} members={members.filter(m => m.id !== me?.user.id)} onDone={async () => { await refresh(); load(); }} />
+              <DeleteOrganisation orgId={orgId} name={org.name} onDone={refresh} />
+            </>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The organisation is waiting to be deleted: when, and (owners) cancel it. */
+export function DeletionNotice({ orgId, deleteOn, onCancelled }: { orgId: string; deleteOn: string; onCancelled?: () => void }) {
+  const { t, error, date } = useI18n();
+  const { refresh } = useSession();
+  const toast = useToast();
+  return (
+    <div className="notice warn" role="note">
+      <span>{t('deletionScheduled', { date: date(deleteOn) })}</span>
+      <button className="btn" onClick={async () => {
+        try { await api.del(`/orgs/${orgId}/deletion`); toast(t('deletionCancelled')); await refresh(); onCancelled?.(); }
+        catch (x) { toast(error(x instanceof ApiError ? x.code : 'server_error')); }
+      }}>{t('cancelDeletion')}</button>
+    </div>
+  );
+}
+
+/** Owners make another member an owner, and may step down to administrator (spec 2). */
+function TransferOwnership({ orgId, members, onDone }: { orgId: string; members: Member[]; onDone: () => Promise<void> }) {
+  const { t, error } = useI18n();
+  const toast = useToast();
+  const [to, setTo] = useState('');
+  const [stepDown, setStepDown] = useState(true);
+  const [armed, setArmed] = useState(false);
+  const target = members.find(m => m.id === to);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!target) return;
+    if (!armed) { setArmed(true); return; }
+    setArmed(false);
+    try {
+      await api.post(`/orgs/${orgId}/transfer`, { userId: target.id, stepDown });
+      toast(t('transferred', { name: target.name }));
+      setTo('');
+      await onDone();
+    } catch (x) { toast(error(x instanceof ApiError ? x.code : 'server_error')); }
+  }
+  return (
+    <div className="sec">
+      <h2>{t('transferOwnership')}</h2>
+      <p className="hint">{t('transferHint')}</p>
+      {members.length ? (
+        <form className="row-form" onSubmit={submit}>
+          <label className="fld grow"><span>{t('newOwner')}</span>
+            <select name="newOwner" value={to} onChange={e => { setTo(e.target.value); setArmed(false); }} required>
+              <option value="" disabled>{t('chooseMember')}</option>
+              {members.map(m => <option key={m.id} value={m.id}>{m.name} · {m.email}</option>)}
+            </select>
+          </label>
+          <label className="chk"><input type="checkbox" name="stepDown" checked={stepDown} onChange={e => { setStepDown(e.target.checked); setArmed(false); }} /> {t('stepDown')}</label>
+          <button className={`btn${armed ? ' armed' : ' primary'}`} type="submit" disabled={!target}>
+            {armed && target ? t('confirmTransfer', { name: target.name }) : t('transfer')}
+          </button>
+        </form>
+      ) : <p className="hint">{t('transferNoOne')}</p>}
+    </div>
+  );
+}
+
+/** Owners delete the organisation: typed name, then 30 days locked before it is deleted for good. */
+function DeleteOrganisation({ orgId, name, onDone }: { orgId: string; name: string; onDone: () => Promise<void> }) {
+  const { t, error } = useI18n();
+  const toast = useToast();
+  const [typed, setTyped] = useState('');
+  const [err, setErr] = useState('');
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setErr('');
+    try {
+      await api.post(`/orgs/${orgId}/deletion`, { confirm: typed });
+      toast(t('deletionRequested'));
+      setTyped('');
+      await onDone();
+    } catch (x) { setErr(error(x instanceof ApiError ? x.code : 'server_error')); }
+  }
+  return (
+    <div className="sec danger-zone">
+      <h2>{t('deleteOrg')}</h2>
+      <p className="hint">{t('deleteOrgHint', { days: 30 })}</p>
+      <form className="row-form" onSubmit={submit}>
+        <label className="fld grow"><span>{t('typeOrgName', { name })}</span>
+          <input name="confirmName" value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" dir="auto" maxLength={200} />
+        </label>
+        <button className="btn danger" type="submit" disabled={typed.trim() !== name}>{t('deleteOrg')}</button>
+      </form>
+      {err && <p className="err" role="alert">{err}</p>}
     </div>
   );
 }

@@ -13,6 +13,7 @@ export function ActivityPanel({ store, items, codes, selected, onClose }: {
   const [scope, setScope] = useState<'all' | 'item'>('all');
   const [rows, setRows] = useState<ActivityEntry[] | null>(null);
   const [more, setMore] = useState(false);
+  const [kept, setKept] = useState<{ days: number | null; csv: boolean } | null>(null);
   const itemId = scope === 'item' && selected ? selected : undefined;
   const version = store.data?.project.version;
 
@@ -20,6 +21,7 @@ export function ActivityPanel({ store, items, codes, selected, onClose }: {
     const r = await store.activity(before, itemId);
     setRows(prev => (before && prev ? [...prev, ...r.activity] : r.activity));
     setMore(r.activity.length === 100);
+    if (r.retentionDays !== undefined) setKept({ days: r.retentionDays, csv: !!r.canExport });
   }, [store, itemId]);
   useEffect(() => { load().catch(() => setRows([])); }, [load, version]);
 
@@ -68,6 +70,11 @@ export function ActivityPanel({ store, items, codes, selected, onClose }: {
         <button aria-pressed={scope === 'all'} onClick={() => setScope('all')}>{t('activityAll')}</button>
         <button aria-pressed={scope === 'item'} disabled={!selected} onClick={() => setScope('item')}>{t('activityThis')}</button>
       </div>
+      {kept && (
+        <p className="hint">{kept.days == null ? t('historyKeptAll') : t('historyKeptN', { n: kept.days })}
+          {kept.csv && store.data && <> <a href={`/api/projects/${store.data.project.id}/activity.csv`} download>{t('exportCsv')}</a></>}
+        </p>
+      )}
       {rows && !rows.length && <p className="hint">{t('noActivity')}</p>}
       <ol className="alist">
         {rows?.map(e => (

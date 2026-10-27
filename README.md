@@ -46,6 +46,8 @@ it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
 `node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`) and
 `node apps/web/e2e/sso.mjs` (single sign-on with a fake identity provider; the API needs `SSO_ALLOW_HTTP=1`
 and `APP_URL` set to the web address) and `node apps/web/e2e/invites.mjs` (inviting from the Members page and joining from the link; needs `DATABASE_URL`) and
+`node apps/web/e2e/org-admin.mjs` (transferring ownership, the audit log, scheduling and cancelling a deletion, a
+deletion run by the daily job, then starting again with no organisation; needs `DATABASE_URL` and `pnpm build`) and
 `node apps/web/e2e/billing.mjs` (trial, then paying on a fake Moyasar page;
 start `node apps/web/e2e/fake-moyasar.mjs` first and the API with `MOYASAR_SECRET_KEY=sk_test_e2e
 MOYASAR_WEBHOOK_SECRET=whsec_e2e MOYASAR_API_URL=http://127.0.0.1:4010/v1`). Set `CHROMIUM_PATH`
@@ -83,7 +85,8 @@ or none. Emails are in the person's language (Arabic right to left) and link bac
 | `APP_URL` | Public address of the app, for links in emails |
 
 The daily digest is `pnpm --filter @wbs-master/api digest` (`node apps/api/dist/digest.js`), run once
-a day by a scheduler. The bell checks for new notifications every minute and whenever the page
+a day by a scheduler. The same job also runs billing, deletes organisations whose 30-day waiting period
+is over and trims history to each plan's retention (see Organisation administration). The bell checks for new notifications every minute and whenever the page
 regains focus. Not yet covered: items that turn red only because time passed (no edit), and
 Teams/Slack delivery.
 
@@ -138,6 +141,37 @@ and Arabic) with a link, valid for 14 days, to create their account and join. So
 account signs in from the link and comes back to it. A link only works for the email it was sent to, and
 only once; sending again makes a new link and the old one stops working. Open invitations for members
 hold a seat, so an organisation cannot invite more people than its plan or paid seats allow.
+
+## Organisation administration
+
+**Transferring ownership.** On the Members page an owner picks another member, who becomes an owner
+(and is told by email); by default the owner steps down to administrator. An organisation always keeps
+at least one owner: the last owner cannot step down, leave or be demoted.
+
+**Deleting an organisation.** Owners delete it from the Members page by typing its exact name. It is not
+deleted at once: for 30 days it is locked. Members and API keys no longer see it, invitation links stop
+working and nobody joins it through single sign-on; owners still see it, read-only (every change is refused
+with `org_pending_deletion`), and any owner can cancel. Open checkouts are cancelled, here and at Moyasar,
+and no renewal reminders are sent. The owners are emailed when the deletion is scheduled, cancelled and
+done. On the 30th day the daily job deletes the organisation and everything in it (projects, items,
+comments, history, invoices, API keys, webhooks, SSO settings, invitations). People's accounts stay: someone
+left without an organisation can still sign in, and the Projects page offers to create a new one
+(`POST /orgs`).
+
+**Audit log.** Owners and administrators see organisation events on the Audit log page (`/audit/:orgId`,
+linked from Members), newest first, filtered by kind: members added, removed, leaving or changing role;
+invitations sent, sent again, withdrawn and accepted; organisation created, renamed, ownership transferred,
+deletion scheduled and cancelled; SSO settings and domains; API keys created and revoked; webhooks added,
+changed and removed; trials started, payments received and plan changes; projects created, archived,
+restored and deleted. Each entry has who (kept as their name at the time; "WBS Master" for billing's own
+changes), what it was about, details and the IP address. Business can export it to CSV.
+
+**History retention (spec 3.4).** Project activity and the audit log are kept 30 days on Free and one year
+(365 days) on Team; Business keeps everything and can export both to CSV (`GET /projects/:id/activity.csv`,
+`GET /orgs/:orgId/audit.csv`; spreadsheet formulas in values are neutralised). The daily job deletes older
+entries, using each organisation's plan in force that day (after billing has updated it), so nothing within
+the current plan's window is ever deleted. Moving down a plan therefore trims history older than the new
+plan's window at the next daily run. The activity panel and audit page say how long history is kept.
 
 ## Billing
 
@@ -204,12 +238,13 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | --- | --- |
 | Account | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PATCH /me` |
 | Organisations | `POST /orgs`, `PATCH /orgs/:orgId`, `GET/POST /orgs/:orgId/members`, `PATCH/DELETE /orgs/:orgId/members/:userId` |
+| Organisation admin | `POST /orgs/:orgId/transfer` (`{ userId, stepDown? }`, owners); `POST /orgs/:orgId/deletion` (`{ confirm: "<organisation name>" }` → `{ deleteOn }`) and `DELETE /orgs/:orgId/deletion` to cancel (owners, signed-in sessions only); `GET /orgs/:orgId/audit` (`?action=member` or `member.added`, `?before=<next>`, `?limit=`; admins), `GET /orgs/:orgId/audit.csv` (Business) |
 | Calendars | `GET/POST /orgs/:orgId/calendars`, `PATCH /orgs/:orgId/calendars/:id`, `POST /orgs/:orgId/calendars/:id/exceptions` (or `{ "saudiYear": 2027 }`), `DELETE .../exceptions/:date` |
 | Projects | `GET/POST /orgs/:orgId/projects`, `GET/PATCH/DELETE /projects/:id` |
 | Editing | `POST /projects/:id/ops` with `{ "ops": [...] }`: `add`, `set`, `move`, `delete`, `link`, `unlink`, `setLag`, `setDeps`. A batch is all-or-nothing and ends with auto-schedule. |
 | Sharing | `GET /projects/:id/members`, `PUT/DELETE /projects/:id/members/:userId` |
 | Baselines | `POST /projects/:id/baselines`, `PATCH/DELETE /projects/:id/baselines/:bid`, `POST .../:bid/restore` |
-| Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` |
+| Reporting | `PUT /projects/:id/summary`, `GET /projects/:id/activity` (with `retentionDays`, `canExport`), `GET /projects/:id/activity.csv` (Business) |
 | Portfolio | `GET /orgs/:orgId/portfolio` (`?asOf=YYYY-MM-DD` for one status date across projects); Team and Business plans |
 | API keys | `GET/POST /me/api-keys`, `DELETE /me/api-keys/:id` (signed-in sessions only) |
 | Webhooks | `GET/POST /orgs/:orgId/webhooks`, `PATCH/DELETE .../:id`, `POST .../:id/test`, `GET .../:id/deliveries` |
