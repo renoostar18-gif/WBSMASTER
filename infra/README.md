@@ -16,6 +16,9 @@ Cloud Scheduler 05:00 Riyadh ──▶ Cloud Run job "wbs-master-digest" (daily 
 GitHub Actions (v* tag) ──keyless──▶ Artifact Registry ──▶ new Cloud Run revision
 ```
 
+**New to Google Cloud?** Follow [GETTING-STARTED.md](GETTING-STARTED.md): plain steps and one script
+(`cloudshell-setup.sh`) to paste into Cloud Shell. The rest of this page is the same setup in detail.
+
 ## What you need first
 
 1. **A Google Cloud organisation and billing account for KSA.** Google Cloud in the Kingdom is sold through

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { type AppDeps, parse, requireUser } from '../app.js';
 import { checkRoomForMember } from '../billing.js';
+import { inviteOrAdd } from '../invites.js';
 import { tx } from '../db.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
 import { orgAccess } from '../permissions.js';
@@ -35,19 +36,16 @@ export const orgRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     return { members: r.rows };
   });
 
-  // Phase 1 adds people who already have an account; email invitations come with notifications (Phase 3).
+  /** Add someone by email: people with an account join now; anyone else gets an invitation link. */
   app.post<{ Params: { orgId: string } }>('/orgs/:orgId/members', async (req, reply) => {
     const user = requireUser(req);
     const acc = await orgAccess(deps.db, user, req.params.orgId, 'admin');
-    const body = parse(z.object({ email: z.string().trim().toLowerCase().email(), role: orgRole.exclude(['owner']) }), req.body);
-    if (body.role === 'guest' && !PLANS[acc.plan].guests) throw forbidden('plan_no_guests');
-    const u = await deps.db.query<{ id: string }>('select id from users where lower(email) = $1', [body.email]);
-    if (!u.rows[0]) throw notFound('user_not_found');
-    await tx(deps.db, async c => {
-      if (body.role !== 'guest') await checkRoomForMember(c, req.params.orgId);
-      await c.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3)', [req.params.orgId, u.rows[0]!.id, body.role]);
+    const body = parse(z.object({ email: z.string().trim().toLowerCase().email().max(254), role: orgRole.exclude(['owner']) }), req.body);
+    const out = await tx(deps.db, async c => {
+      const o = (await c.query<{ name: string }>('select name from organisations where id = $1', [req.params.orgId])).rows[0]!;
+      return inviteOrAdd(c, deps.mailer, deps.config.appUrl, { id: req.params.orgId, name: o.name, plan: acc.plan }, user, body.email, body.role);
     });
-    return reply.status(201).send({ userId: u.rows[0].id });
+    return reply.status(201).send(out);
   });
 
   app.patch<{ Params: { orgId: string; userId: string } }>('/orgs/:orgId/members/:userId', async req => {

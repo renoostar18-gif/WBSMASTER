@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { DEMO } from './api.js';
 import { I18nProvider } from './i18n.js';
 import { AuthPage } from './pages/Auth.js';
 import { BillingPage } from './pages/Billing.js';
+import { InvitePage } from './pages/Invite.js';
+import { MembersPage } from './pages/Members.js';
 import { PortfolioPage } from './pages/Portfolio.js';
 import { ProjectsPage } from './pages/Projects.js';
 import { SettingsPage } from './pages/Settings.js';
@@ -19,8 +21,10 @@ function Private({ children }: { children: ReactNode }) {
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { me, loading } = useSession();
+  const next = new URLSearchParams(useLocation().search).get('next');
   if (loading) return null;
-  return me ? <Navigate to="/" replace /> : <>{children}</>;
+  // signed in: go where the sign-in was for (an invitation), only within this site
+  return me ? <Navigate to={next && next.startsWith('/') && !next.startsWith('//') ? next : '/'} replace /> : <>{children}</>;
 }
 
 // the demo runs inside a framed page whose address it cannot change, so it keeps routes in memory
@@ -40,6 +44,8 @@ export function App() {
               <Route path="/portfolio/:orgId" element={<Private><PortfolioPage /></Private>} />
               <Route path="/settings" element={<Private><SettingsPage /></Private>} />
               <Route path="/billing/:orgId" element={<Private><BillingPage /></Private>} />
+              <Route path="/members/:orgId" element={<Private><MembersPage /></Private>} />
+              <Route path="/invite/:token" element={<InvitePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>

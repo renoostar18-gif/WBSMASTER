@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { type AppDeps, parse, requireUser } from '../app.js';
 import {
-  BillingRuleError, type BillingContext, type InvoiceRow, MAX_SEATS, TRIAL_DAYS, billableMembers, loadBillingState, quote,
+  BillingRuleError, type BillingContext, type InvoiceRow, MAX_SEATS, TRIAL_DAYS, VAT_RATE, billableMembers, loadBillingState, quote,
   renderInvoice, seatPrice, settleInvoice, syncPlan,
 } from '../billing.js';
 import { tx } from '../db.js';
@@ -27,7 +27,7 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     db: deps.db, gateway, seller: deps.config.seller, mailer: deps.mailer, appUrl: deps.config.appUrl, today: () => deps.today?.() ?? new Date(),
   };
   const today = () => toIso(todayDay(ctx.today()))!;
-  const vatRegistered = !!deps.config.seller.vatNumber;
+  const vatEnabled = deps.config.vatEnabled;
 
   /** Billing belongs to owners (spec 2); not through API keys. */
   async function owner(req: Parameters<typeof requireUser>[0], orgId: string) {
@@ -44,7 +44,7 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
     if (state.comped) throw conflict('billing_comped');
     if (b.seats < await billableMembers(deps.db, orgId)) throw badRequest('billing_seats_below_members');
     try {
-      return { state, q: quote(state, b, today(), vatRegistered) };
+      return { state, q: quote(state, b, today(), vatEnabled) };
     } catch (e) {
       if (e instanceof BillingRuleError) throw conflict(e.code);
       throw e;
@@ -64,7 +64,7 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       current: state.current && { plan: state.current.plan, interval: state.current.interval, seats: state.current.seats, periodStart: state.current.period_start, periodEnd: state.current.period_end },
       paidUntil: state.paidUntil, inGrace: state.inGrace, renewed: state.renewed,
       trial: state.trial, trialAvailable: !o.trial_ends && !state.current && !state.comped, trialDays: TRIAL_DAYS, comped: !!state.comped,
-      payments: !!gateway, vatRegistered,
+      payments: !!gateway, vatRate: vatEnabled ? VAT_RATE : 0,
       prices: { team: { month: seatPrice('team', 'month'), year: seatPrice('team', 'year') }, business: { month: seatPrice('business', 'month'), year: seatPrice('business', 'year') } },
       profile: { name: o.billing_name ?? '', address: o.billing_address ?? '', vatNumber: o.billing_vat_number ?? '', email: o.billing_email ?? '' },
       invoices: invoices.rows.map(i => ({

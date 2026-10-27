@@ -20,7 +20,7 @@ export type CheckoutKind = 'new' | 'renew' | 'upgrade';
 export const TRIAL_DAYS = 14;
 /** After a paid period ends, the plan carries on this many days while the organisation renews. */
 export const GRACE_DAYS = 7;
-/** Saudi VAT, charged only when the seller is VAT registered (SELLER_VAT_NUMBER). */
+/** Saudi VAT, added to prices when VAT is switched on (VAT_ENABLED). */
 export const VAT_RATE = 15;
 /** Moyasar's smallest charge: SAR 1. */
 export const MIN_CHARGE = 100;
@@ -115,9 +115,9 @@ export class BillingRuleError extends Error {
  * moving up (a higher plan or more seats, same billing interval) is charged now for the days left;
  * anything else is a renewal that starts when the current period ends. Moving down happens at renewal.
  */
-export function quote(state: BillingState, req: { plan: PaidPlan; interval: Interval; seats: number; renew?: boolean }, today: string, vatRegistered: boolean): Quote {
+export function quote(state: BillingState, req: { plan: PaidPlan; interval: Interval; seats: number; renew?: boolean }, today: string, vatEnabled: boolean): Quote {
   const price = seatPrice(req.plan, req.interval);
-  const vatRate = vatRegistered ? VAT_RATE : 0;
+  const vatRate = vatEnabled ? VAT_RATE : 0;
   const done = (kind: CheckoutKind, periodStart: string, periodEnd: string, subtotal: number): Quote => {
     const vat = Math.round((subtotal * vatRate) / 100);
     return { kind, plan: req.plan, interval: req.interval, seats: req.seats, seatPrice: price, periodStart, periodEnd, subtotal, vatRate, vat, total: subtotal + vat };
@@ -153,10 +153,23 @@ export async function memberLimit(q: Queryable, orgId: string): Promise<number> 
   return r.rows[0]?.seats ?? PLANS[r.rows[0]?.plan ?? 'free'].members;
 }
 
-/** Refuse another member beyond the paid seats (403 plan_seat_limit) or the Free plan's 3 (403 plan_member_limit). */
-export async function checkRoomForMember(q: Queryable, orgId: string): Promise<void> {
+/** Open invitations that will need a seat (not guests), except the one for `exceptEmail`. */
+export async function pendingSeatInvites(q: Queryable, orgId: string, exceptEmail = ''): Promise<number> {
+  const r = await q.query<{ n: number }>(
+    `select count(*)::int as n from invitations
+      where org_id = $1 and role <> 'guest' and accepted_at is null and expires_at > now() and lower(email) <> $2`, [orgId, exceptEmail.toLowerCase()]);
+  return r.rows[0]!.n;
+}
+
+/**
+ * Refuse another member beyond the paid seats (403 plan_seat_limit) or the Free plan's 3 (403 plan_member_limit).
+ * With `invites`, open invitations hold their seats too (inviting and adding people); without, they do not
+ * (accepting an invitation, which uses the seat it held).
+ */
+export async function checkRoomForMember(q: Queryable, orgId: string, invites?: { exceptEmail: string }): Promise<void> {
   const r = await q.query<{ seats: number | null }>('select seats from organisations where id = $1 for update', [orgId]);
-  if ((await billableMembers(q, orgId)) >= (await memberLimit(q, orgId))) {
+  const held = invites ? await pendingSeatInvites(q, orgId, invites.exceptEmail) : 0;
+  if ((await billableMembers(q, orgId)) + held >= (await memberLimit(q, orgId))) {
     throw new ApiError(403, r.rows[0]?.seats != null ? 'plan_seat_limit' : 'plan_member_limit');
   }
 }
@@ -370,7 +383,9 @@ const KIND = {
 export async function renderInvoice(inv: InvoiceRow): Promise<string> {
   const s = inv.seller!;
   const b = inv.buyer!;
+  // a tax invoice (title, VAT number, QR code) needs the seller's VAT number; VAT itself is shown whenever it was charged
   const taxed = !!s.vatNumber;
+  const vatCharged = Number(inv.vat_rate) > 0;
   const issued = inv.paid_at!;
   const qr = taxed ? await QRCode.toString(zatcaTlv({ seller: s.name, vatNumber: s.vatNumber!, time: issued, total: inv.total, vat: inv.vat }), { type: 'svg', margin: 0, width: 132 }) : '';
   const num = `INV-${String(inv.number).padStart(6, '0')}`;
@@ -401,15 +416,15 @@ ${row('Service period', 'فترة الخدمة', `<span dir="ltr">${inv.period_s
 ${row('Payment', 'الدفع', 'Moyasar')}
 </table>
 <div class="cols">
-<div><b>Seller · البائع</b><div>${esc(s.name)}</div><div class="ar l" lang="ar">${esc(s.nameAr)}</div><div>${esc(s.address)}</div>
+<div><b>Seller · البائع</b><div>${esc(s.name)}</div><div class="ar l" lang="ar">${esc(s.nameAr)}</div>${s.address ? `<div>${esc(s.address)}</div>` : ''}
 ${s.cr ? `<div>CR · السجل التجاري: <span dir="ltr">${esc(s.cr)}</span></div>` : ''}${taxed ? `<div>VAT · الرقم الضريبي: <span dir="ltr">${esc(s.vatNumber!)}</span></div>` : ''}</div>
 <div><b>Customer · العميل</b><div dir="auto">${esc(b.name || b.organisation)}</div>${b.name ? `<div dir="auto">${esc(b.organisation)}</div>` : ''}
 ${b.address ? `<div dir="auto">${esc(b.address)}</div>` : ''}${b.vatNumber ? `<div>VAT · الرقم الضريبي: <span dir="ltr">${esc(b.vatNumber)}</span></div>` : ''}</div>
 </div>
 <table class="lines"><thead><tr><th>Description · الوصف</th><th class="num">Amount · المبلغ</th></tr></thead><tbody>
 <tr><td>${esc(description)}<div class="ar l" lang="ar">${esc(descriptionAr)}</div></td><td class="num">${sar(inv.subtotal)}</td></tr>
-${taxed ? `<tr><td>VAT ${vatPct}% · ضريبة القيمة المضافة ${vatPct}٪</td><td class="num">${sar(inv.vat)}</td></tr>` : ''}
+${vatCharged ? `<tr><td>VAT ${vatPct}% · ضريبة القيمة المضافة ${vatPct}٪</td><td class="num">${sar(inv.vat)}</td></tr>` : ''}
 <tr class="tot"><td>Total · الإجمالي</td><td class="num">${sar(inv.total)}</td></tr></tbody></table>
-${taxed ? '' : '<p class="muted">The seller is not registered for VAT; no VAT is charged. · البائع غير مسجل في ضريبة القيمة المضافة، ولا تُحتسب ضريبة.</p>'}
+${vatCharged ? '' : '<p class="muted">The seller is not registered for VAT; no VAT is charged. · البائع غير مسجل في ضريبة القيمة المضافة، ولا تُحتسب ضريبة.</p>'}
 </div></body></html>`;
 }

@@ -17,6 +17,7 @@ import { RateLimiter } from './ratelimit.js';
 import { integrationRoutes } from './routes/integrations.js';
 import { ssoRoutes } from './routes/sso.js';
 import { billingRoutes } from './routes/billing.js';
+import { invitationRoutes } from './routes/invitations.js';
 import type { PaymentGateway } from './moyasar.js';
 import { WebhookDispatcher } from './webhooks.js';
 import { OpError } from './ops.js';
@@ -115,6 +116,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(integrationRoutes(deps), { prefix: '/api' });
   app.register(ssoRoutes(deps), { prefix: '/api' });
   app.register(billingRoutes(deps), { prefix: '/api' });
+  app.register(invitationRoutes(deps), { prefix: '/api' });
   app.get('/api/openapi.json', async () => openApi);
   const docs = renderApiDocs();
   app.get('/api/docs', async (_req, reply) => reply.type('text/html; charset=utf-8').send(docs));

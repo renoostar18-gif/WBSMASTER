@@ -250,6 +250,7 @@ locals {
     TRUST_PROXY           = "1"
     WEB_DIST              = "/app/web"
     WEBHOOK_ALLOW_PRIVATE = "0"
+    VAT_ENABLED           = var.vat_enabled ? "1" : "0"
     }, {
     # the seller printed on invoices; with a VAT number, invoices carry 15% VAT and the ZATCA QR code
     for k, v in {

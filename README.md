@@ -45,7 +45,8 @@ it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
 `node apps/web/e2e/notifications.mjs` (a mention and an assignment reach the bell and open the item) and
 `node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`) and
 `node apps/web/e2e/sso.mjs` (single sign-on with a fake identity provider; the API needs `SSO_ALLOW_HTTP=1`
-and `APP_URL` set to the web address) and `node apps/web/e2e/billing.mjs` (trial, then paying on a fake Moyasar page;
+and `APP_URL` set to the web address) and `node apps/web/e2e/invites.mjs` (inviting from the Members page and joining from the link; needs `DATABASE_URL`) and
+`node apps/web/e2e/billing.mjs` (trial, then paying on a fake Moyasar page;
 start `node apps/web/e2e/fake-moyasar.mjs` first and the API with `MOYASAR_SECRET_KEY=sk_test_e2e
 MOYASAR_WEBHOOK_SECRET=whsec_e2e MOYASAR_API_URL=http://127.0.0.1:4010/v1`). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
@@ -129,6 +130,15 @@ with the same email is signed in, not duplicated.
 | `SECRET_KEY` | 32+ characters; encrypts SSO client secrets. Without it in production, SSO is unavailable (the rest works). |
 | `SSO_ALLOW_HTTP=1` | Allows a provider on plain http (local tests only; ignored in production). |
 
+## Members and invitations
+
+Admins manage people on the Members page (`/members/:orgId`). Adding an email that already has an
+account adds the person at once and tells them by email. Anyone else gets an invitation email (English
+and Arabic) with a link, valid for 14 days, to create their account and join. Someone who already has an
+account signs in from the link and comes back to it. A link only works for the email it was sent to, and
+only once; sending again makes a new link and the old one stops working. Open invitations for members
+hold a seat, so an organisation cannot invite more people than its plan or paid seats allow.
+
 ## Billing
 
 Owners manage the plan on the Billing page (`/billing/:orgId`). Prices are in SAR: Team SAR 45 and Business
@@ -146,10 +156,10 @@ SAR 90 per seat a month, or SAR 432 and SAR 864 a year (20% off). Members need a
   checkouts, in case a notification never arrives.
 - **After a plan ends** nothing is deleted. On Free, the oldest three active projects stay editable and the
   rest become read-only until the organisation upgrades or archives some.
-- **Invoices** are numbered without gaps (INV-000001…), in English and Arabic, printable as PDF. While
-  `SELLER_VAT_NUMBER` is empty they carry no VAT and say the seller is not VAT registered. Once it is
-  set, new invoices become tax invoices with 15% VAT and the ZATCA QR code (phase 1). Invoices already
-  issued keep the seller details they were issued with.
+- **Invoices** are numbered without gaps (INV-000001…), in English and Arabic, printable as PDF. With
+  `VAT_ENABLED=1`, 15% VAT is added and shown on invoices; without it, invoices say no VAT is charged.
+  With `SELLER_VAT_NUMBER` set they are tax invoices with the VAT number and the ZATCA QR code
+  (phase 1). Invoices already issued keep the seller details they were issued with.
 - **Pilots:** `update organisations set comp_plan = 'business' where id = …` gives a plan free of charge.
 
 | Setting | Meaning |
@@ -158,7 +168,8 @@ SAR 90 per seat a month, or SAR 432 and SAR 864 a year (20% off). Members need a
 | `MOYASAR_WEBHOOK_SECRET` | The secret token set on the webhook in Moyasar's dashboard; webhooks with another token are refused. |
 | `MOYASAR_API_URL` | Defaults to `https://api.moyasar.com/v1` (tests point it at a fake). |
 | `SELLER_NAME`, `SELLER_NAME_AR`, `SELLER_ADDRESS`, `SELLER_CR` | The seller printed on invoices. |
-| `SELLER_VAT_NUMBER` | Leave empty while not VAT registered. |
+| `SELLER_VAT_NUMBER` | With it, invoices are tax invoices with the ZATCA QR code. |
+| `VAT_ENABLED` | `1` adds 15% VAT to prices, `0` does not. Unset: on only with a VAT number. Only VAT-registered sellers may charge VAT. |
 
 In Moyasar's dashboard, add a webhook to `https://<your domain>/api/billing/moyasar/notify` for paid
 payments, with the same secret token. Before going live, make one test payment with the test keys and
@@ -203,6 +214,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | API keys | `GET/POST /me/api-keys`, `DELETE /me/api-keys/:id` (signed-in sessions only) |
 | Webhooks | `GET/POST /orgs/:orgId/webhooks`, `PATCH/DELETE .../:id`, `POST .../:id/test`, `GET .../:id/deliveries` |
 | Single sign-on | `GET/PUT/DELETE /orgs/:orgId/sso`, `POST /orgs/:orgId/sso/domains`, `POST .../domains/:domain/verify`, `DELETE .../domains/:domain`; `POST /auth/sso/start` (`{ email }` → `{ url }`), `GET /auth/sso/callback` |
+| Invitations | `POST /orgs/:orgId/members` (`{ email, role }`: adds or invites), `GET /orgs/:orgId/invitations`, `POST .../invitations/:id/resend`, `DELETE .../invitations/:id`; `GET /invitations/:token`, `POST /invitations/:token/accept`; `POST /auth/signup` with `invite` |
 | Billing (owners, signed-in sessions only) | `GET /orgs/:orgId/billing`, `PUT .../billing/profile`, `POST .../billing/trial`, `POST .../billing/quote` and `.../billing/checkout` (`{ plan, interval, seats, renew? }`; checkout → `{ url }` of Moyasar's page), `GET .../billing/invoices/:id` (HTML); `GET /billing/return`, `POST /billing/moyasar/notify` |
 | Notifications | `GET /notifications`, `GET /notifications/unread`, `POST /notifications/read` (`{ ids }`, or all); `PATCH /me` with `notifyEmail`: `instant`, `daily` or `off` |
 | Comments | `GET/POST /projects/:id/comments`, `PATCH/DELETE /projects/:id/comments/:cid`, `POST .../:cid/resolve`, `GET /projects/:id/people` (who can be mentioned) |
