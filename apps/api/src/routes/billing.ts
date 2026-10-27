@@ -149,9 +149,10 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   app.get<{ Querystring: { invoice?: string } }>('/billing/return', async (req, reply) => {
     const id = req.query.invoice ?? '';
     const row = /^[0-9a-f-]{36}$/.test(id)
-      ? (await deps.db.query<{ org_id: string }>('select org_id from billing_invoices where id = $1', [id])).rows[0]
+      ? (await deps.db.query<{ org_id: string | null }>('select org_id from billing_invoices where id = $1', [id])).rows[0]
       : undefined;
-    if (!row) return reply.redirect('/');
+    // unknown, or kept after its organisation was deleted
+    if (!row?.org_id) return reply.redirect('/');
     const status = await settleInvoice(ctx, id).catch(e => { console.error('billing return: could not check', id, e); return 'pending' as const; });
     return reply.redirect(`/billing/${row.org_id}?payment=${status === 'paid' ? 'paid' : status === 'pending' ? 'pending' : 'failed'}`);
   });

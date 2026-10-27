@@ -8,6 +8,14 @@ alter table organisations
   add column delete_on date;
 create index organisations_delete_on_idx on organisations (delete_on) where delete_on is not null;
 
+-- Issued invoices are kept for years (Saudi rules), so they outlive a deleted organisation: org_id
+-- becomes null and the invoice keeps its frozen seller and buyer details. Unpaid checkouts are deleted
+-- with the organisation (runDailyDeletions does that before deleting it).
+alter table billing_invoices
+  alter column org_id drop not null,
+  drop constraint billing_invoices_org_id_fkey,
+  add constraint billing_invoices_org_id_fkey foreign key (org_id) references organisations (id) on delete set null;
+
 -- Organisation-level events for admins: people, invitations, ownership, SSO, API keys, webhooks,
 -- billing, projects and deletion. Kept as long as project activity (plan retention, spec 3.4).
 create table audit_log (

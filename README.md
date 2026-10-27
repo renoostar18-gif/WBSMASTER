@@ -154,7 +154,9 @@ working and nobody joins it through single sign-on; owners still see it, read-on
 with `org_pending_deletion`), and any owner can cancel. Open checkouts are cancelled, here and at Moyasar,
 and no renewal reminders are sent. The owners are emailed when the deletion is scheduled, cancelled and
 done. On the 30th day the daily job deletes the organisation and everything in it (projects, items,
-comments, history, invoices, API keys, webhooks, SSO settings, invitations). People's accounts stay: someone
+comments, history, unpaid checkouts, API keys, webhooks, SSO settings, invitations). Paid invoices are kept,
+as Saudi rules require keeping them for years: they lose their link to the organisation (`org_id` becomes
+null) but keep their number and the seller and buyer details frozen when they were paid. People's accounts stay: someone
 left without an organisation can still sign in, and the Projects page offers to create a new one
 (`POST /orgs`).
 

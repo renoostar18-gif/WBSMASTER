@@ -176,6 +176,12 @@ describe('deleting an organisation', () => {
   });
 
   it('is done by the daily job after 30 days, with all its data; the people can start again', async () => {
+    // an issued invoice, which must be kept for years, next to the cancelled checkout from before
+    const buyer = { organisation: 'Omar\'s workspace', name: 'Omar Trading', address: 'Jeddah', vatNumber: '300000000000003', email: 'billing@example.com' };
+    const paid = (await t.db.query<{ id: string }>(
+      `insert into billing_invoices (org_id, number, kind, plan, interval, seats, period_start, period_end, subtotal, total, status, paid_at, seller, buyer)
+       values ($1, 9001, 'new', 'team', 'month', 2, '2026-09-22', '2026-10-22', 9000, 9000, 'paid', now(), '{"name":"WBS Master Co"}', $2) returning id`,
+      [orgId, JSON.stringify(buyer)])).rows[0]!.id;
     await owner.post(`/api/orgs/${orgId}/deletion`, { confirm: 'Omar\'s workspace' });
     const day = (iso: string) => () => new Date(`${iso}T03:00:00Z`);
     const ctx = { db: t.db, mailer: t.mail, appUrl: 'https://app.example' };
@@ -187,6 +193,10 @@ describe('deleting an organisation', () => {
       expect((await t.db.query(`select 1 from ${table} where ${col} = $1`, [orgId])).rowCount, table).toBe(0);
     }
     expect((await t.db.query('select 1 from wbs_items where project_id = $1', [projectId])).rowCount).toBe(0);
+    // the paid invoice stays, without the organisation, with its number and buyer; the unpaid checkout is gone
+    expect((await t.db.query('select org_id, number, status, buyer from billing_invoices where id = $1', [paid])).rows)
+      .toEqual([{ org_id: null, number: 9001, status: 'paid', buyer }]);
+    expect((await t.db.query("select 1 from billing_invoices where moyasar_id = 'mi_open'")).rowCount).toBe(0);
     // Omar belongs to nothing now, but can still sign in and make a new organisation
     const omar = new Client(t.app);
     expect((await omar.post('/api/auth/login', { email: 'omar@example.com', password: 'correct horse battery' })).status).toBe(200);

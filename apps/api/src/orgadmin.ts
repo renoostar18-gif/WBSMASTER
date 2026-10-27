@@ -49,7 +49,8 @@ export async function cancelDeletion(db: Db, orgId: string, who: AuditBy): Promi
 
 /**
  * The daily job: delete organisations whose waiting period is over, with all their data (projects,
- * items, comments, invoices, keys, webhooks… through the foreign keys), then tell the owners.
+ * items, comments, keys, webhooks… through the foreign keys), then tell the owners. Paid invoices are
+ * kept without the organisation (org_id null); their buyer and seller details were frozen when paid.
  * The people stay: they can still sign in, join other organisations or create a new one.
  */
 export async function runDailyDeletions(ctx: { db: Db; mailer?: Mailer; appUrl: string; today: () => Date }): Promise<number> {
@@ -62,6 +63,8 @@ export async function runDailyDeletions(ctx: { db: Db; mailer?: Mailer; appUrl: 
         const o = (await c.query<{ name: string; delete_on: string | null }>('select name, delete_on from organisations where id = $1 for update', [id])).rows[0];
         if (!o?.delete_on || o.delete_on > today) return null; // cancelled meanwhile
         const owners = await ownersOf(c, id);
+        // unpaid checkouts go; paid invoices stay (org_id becomes null), as they must be kept for years
+        await c.query("delete from billing_invoices where org_id = $1 and status <> 'paid'", [id]);
         await c.query('delete from organisations where id = $1', [id]);
         return { name: o.name, owners };
       });

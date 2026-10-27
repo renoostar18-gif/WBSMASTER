@@ -201,7 +201,8 @@ export async function syncPlan(q: Queryable, orgId: string, today: string): Prom
 }
 
 export interface InvoiceRow {
-  id: string; org_id: string; number: number | null; kind: CheckoutKind; plan: PaidPlan; interval: Interval; seats: number;
+  /** Null once the organisation is deleted: paid invoices are kept, with their frozen buyer details. */
+  id: string; org_id: string | null; number: number | null; kind: CheckoutKind; plan: PaidPlan; interval: Interval; seats: number;
   period_start: string; period_end: string; subtotal: number; vat_rate: string; vat: number; total: number; currency: string;
   status: 'pending' | 'paid' | 'canceled' | 'expired' | 'failed'; moyasar_id: string | null; pay_url: string | null;
   seller: SellerSnapshot | null; buyer: BuyerSnapshot | null; created_at: Date; paid_at: Date | null;
@@ -240,21 +241,23 @@ export async function settleInvoice(ctx: BillingContext, invoiceId: string): Pro
   const newlyPaid = await tx(ctx.db, async c => {
     const row = (await c.query<InvoiceRow>('select * from billing_invoices where id = $1 for update', [invoiceId])).rows[0]!;
     // paid even when canceled here meanwhile: the customer's money arrived, so they get what they paid for
-    if (row.status === 'paid') return false;
+    // an unpaid checkout never outlives its organisation (it is deleted with it), but be safe
+    if (row.status === 'paid' || !row.org_id) return false;
+    const orgId = row.org_id;
     const n = (await c.query<{ value: number }>("update billing_counters set value = value + 1 where name = 'invoice' returning value")).rows[0]!.value;
     const o = (await c.query<{ name: string; billing_name: string | null; billing_address: string | null; billing_vat_number: string | null; billing_email: string | null }>(
-      'select name, billing_name, billing_address, billing_vat_number, billing_email from organisations where id = $1', [row.org_id])).rows[0]!;
+      'select name, billing_name, billing_address, billing_vat_number, billing_email from organisations where id = $1', [orgId])).rows[0]!;
     const seller: SellerSnapshot = { ...ctx.seller };
     const buyer: BuyerSnapshot = { organisation: o.name, name: o.billing_name, address: o.billing_address, vatNumber: o.billing_vat_number, email: o.billing_email };
     await c.query("update billing_invoices set status = 'paid', number = $2, paid_at = now(), seller = $3, buyer = $4 where id = $1",
       [invoiceId, n, JSON.stringify(seller), JSON.stringify(buyer)]);
-    await c.query('update organisations set trial_ends = least(trial_ends, $2::date) where id = $1 and trial_ends is not null', [row.org_id, today]);
-    await audit(c, row.org_id, SYSTEM, 'billing.payment_received', `INV-${String(n).padStart(6, '0')}`,
+    await c.query('update organisations set trial_ends = least(trial_ends, $2::date) where id = $1 and trial_ends is not null', [orgId, today]);
+    await audit(c, orgId, SYSTEM, 'billing.payment_received', `INV-${String(n).padStart(6, '0')}`,
       { invoiceId: invoiceId, total: row.total, currency: row.currency, plan: row.plan, interval: row.interval, seats: row.seats, periodStart: row.period_start, periodEnd: row.period_end });
-    await syncPlan(c, row.org_id, today);
+    await syncPlan(c, orgId, today);
     return true;
   });
-  if (newlyPaid) await emailOwners(ctx, pending.org_id, (l, org) => receiptEmail(l, org, pending, ctx.appUrl));
+  if (newlyPaid && pending.org_id) await emailOwners(ctx, pending.org_id, (l, org) => receiptEmail(l, org, pending, ctx.appUrl));
   return 'paid';
 }
 
