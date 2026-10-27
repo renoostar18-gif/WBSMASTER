@@ -20,6 +20,9 @@ export interface TableProps {
   onAddChild: (parentId: string | null) => void;
   onEnterInName: (id: string) => void;
   othersByItem?: Map<string, string[]>;
+  /** Public read-only links leave out owners (when asked) and notes. */
+  hideOwner?: boolean;
+  hideNotes?: boolean;
 }
 
 /** Text input that commits on blur or Enter and reverts on Escape. Re-mounts when the stored value changes. */
@@ -78,20 +81,20 @@ export function TableView(p: TableProps) {
       <table className="wt">
         <thead>
           <tr>
-            <th className="stk1" /><th className="stk2" /><th colSpan={4} />
+            <th className="stk1" /><th className="stk2" /><th colSpan={p.hideOwner ? 3 : 4} />
             <th className="grp-h gs" colSpan={2}>{t('planned')}{p.activeBaselineName ? ` · ${p.activeBaselineName}` : ''}</th>
             <th className="grp-h gs" colSpan={2}>{t('forecast')}</th>
             <th className="grp-h gs" colSpan={2}>{t('actual')}</th>
-            <th className="gs" colSpan={5} />
+            <th className="gs" colSpan={p.hideNotes ? 4 : 5} />
           </tr>
           <tr>
             <th className="stk1">{t('wbs')}</th><th className="stk2">{t('name')}</th>
-            <th>{t('owner')}</th><th>{t('status')}</th><th>{t('health')}</th><th style={{ textAlign: 'end' }}>{t('planPct')}</th>
+            {!p.hideOwner && <th>{t('owner')}</th>}<th>{t('status')}</th><th>{t('health')}</th><th style={{ textAlign: 'end' }}>{t('planPct')}</th>
             <th className="gs">{t('start')}</th><th>{t('finish')}</th>
             <th className="gs">{t('start')}</th><th>{t('finish')}</th>
             <th className="gs">{t('start')}</th><th>{t('finish')}</th>
             <th className="gs" title={t('varianceLong')}>{t('variance')}</th>
-            <th title={t('dependsHint')}>{t('dependsOn')}</th><th>{t('progress')}</th><th style={{ minWidth: 160 }}>{t('notes')}</th><th />
+            <th title={t('dependsHint')}>{t('dependsOn')}</th><th>{t('progress')}</th>{!p.hideNotes && <th style={{ minWidth: 160 }}>{t('notes')}</th>}<th />
           </tr>
         </thead>
         <tbody>
@@ -115,7 +118,7 @@ export function TableView(p: TableProps) {
                       onCommit={v => set(n.id, 'name', v)} onEnter={() => p.onEnterInName(n.id)} />
                   </div>
                 </td>
-                <td><Cell value={n.owner} aria-label={t('owner')} dir="auto" style={{ width: 120 }} disabled={!p.canEdit} onCommit={v => set(n.id, 'owner', v)} /></td>
+                {!p.hideOwner && <td><Cell value={n.owner} aria-label={t('owner')} dir="auto" style={{ width: 120 }} disabled={!p.canEdit} onCommit={v => set(n.id, 'owner', v)} /></td>}
                 <td>
                   {parent
                     ? <select disabled aria-label={t('status')}><option>{t(`status_${i.status}` as MessageKey)}</option></select>
@@ -145,7 +148,7 @@ export function TableView(p: TableProps) {
                   <Cell value={String(i.progress)} type="number" min={0} max={100} className="pct" aria-label={t('progress')}
                     disabled={parent || i.status === 'completed' || !p.canEdit} onCommit={v => set(n.id, 'progress', Number(v) || 0)} />
                 </td>
-                <td><Cell value={n.notes} aria-label={t('notes')} dir="auto" style={{ minWidth: 160 }} disabled={!p.canEdit} onCommit={v => set(n.id, 'notes', v)} /></td>
+                {!p.hideNotes && <td><Cell value={n.notes} aria-label={t('notes')} dir="auto" style={{ minWidth: 160 }} disabled={!p.canEdit} onCommit={v => set(n.id, 'notes', v)} /></td>}
                 <td>{p.canEdit && <button className="rowadd" onClick={() => p.onAddChild(n.id)} title={t('addChild')} aria-label={t('addChild')}>+</button>}</td>
               </tr>
             );

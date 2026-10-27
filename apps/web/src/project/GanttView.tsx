@@ -300,7 +300,7 @@ export function GanttView(p: Props) {
         </div>
       </div>
       <div className="legend">
-        <span><i className="lg-bar" />{t('lgForecast')}</span>
+        <span><i className="lg-bar" />{p.canEdit ? t('lgForecast') : t('forecast')}</span>
         {p.options.showBaseline && <span><i className="lg-base" />{t('planned')}</span>}
         <span><i className="lg-act" />{t('actual')}</span>
         <span><i className="lg-ms" />{t('milestone')}</span>

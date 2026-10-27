@@ -12,6 +12,7 @@ import { CommentsPanel } from './CommentsPanel.js';
 import { safeFileName, saveBlob, writeWorkbook } from './excel.js';
 import { ImportDialog } from './ImportDialog.js';
 import { Inspector } from './Inspector.js';
+import { ShareDialog } from './ShareDialog.js';
 import { SummaryView } from './SummaryView.js';
 import { type EditResult, useProject } from './store.js';
 import { TableView } from './TableView.js';
@@ -66,6 +67,7 @@ export function ProjectPage() {
   const [armedDelete, setArmedDelete] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [baselinesOpen, setBaselinesOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [panel, setPanel] = useState<'details' | 'activity' | 'comments'>('details');
   const [commentScope, setCommentScope] = useState<'all' | 'item'>('all');
   const comments = useComments(projectId, store.commentsTick);
@@ -298,6 +300,10 @@ export function ProjectPage() {
             </button>
           )}
           {view !== 'summary' && <button className="ib" aria-pressed={panel === 'activity'} onClick={() => setPanel(x => (x === 'activity' ? 'details' : 'activity'))} title={t('activity')}>{Icon.history}<span className="lbl-long">{t('activity')}</span></button>}
+          {/* public links are served by the API, which the demo does not have */}
+          {store.isAdmin && import.meta.env.MODE !== 'demo' && (
+            <button className="ib" onClick={() => setShareOpen(true)} title={t('shareTitle')}>{Icon.share}<span className="lbl-long">{t('share')}</span></button>
+          )}
           {store.isAdmin && <button className="ib" onClick={() => setSettingsOpen(true)} title={t('settings')}>{Icon.gear}<span className="lbl-long">{t('settings')}</span></button>}
         </div>
         <div className="summary">
@@ -341,6 +347,7 @@ export function ProjectPage() {
       </main>
       {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} />}
       {baselinesOpen && <BaselinesDialog store={store} onClose={() => setBaselinesOpen(false)} />}
+      {shareOpen && <ShareDialog projectId={data.project.id} onClose={() => setShareOpen(false)} />}
       {importOpen && (
         <ImportDialog orgId={data.project.orgId} project={{ id: data.project.id, name: data.project.name, items, canEdit: store.canEdit }}
           applyToProject={edit} onClose={() => setImportOpen(false)}

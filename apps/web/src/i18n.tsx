@@ -251,6 +251,17 @@ const en = {
   e_plan_no_guests: 'Guests are part of the Team and Business plans.', e_last_owner: 'An organisation needs at least one owner.',
   e_owner_only: 'Only an owner can do that.',
   readOnlyPlan: 'Read-only: your plan allows fewer active projects than this organisation has. Upgrade, or archive projects you no longer need.',
+  share: 'Share', shareTitle: 'Public read-only links',
+  shareHint: 'Anyone with a link sees this project read-only, without signing in. Comments, activity, notes and people’s emails are never shown.',
+  shareViews: 'Views shown', shareOwners: 'Show owners’ names', shareOwnersHidden: 'Owners hidden', shareExpires: 'Stops working after (optional)',
+  shareCreate: 'Create link', shareNewOnce: 'Copy the link now: it is shown only once. If it is lost, revoke it and create a new one.',
+  shareNone: 'No public links yet.', shareNoExpiry: 'No end date', shareNeedsPlan: 'Public links are part of the Team and Business plans.',
+  sharedNote: 'Shared with WBS Master — read-only', shareUntil: 'This link works until {date}.', shareArchived: 'This project is archived.',
+  a_share_create: '{who} created a public read-only link', a_share_revoke: '{who} revoked a public read-only link',
+  e_share_not_found: 'This link is not valid. It may have been revoked; ask whoever shared it for a new one.',
+  e_share_expired: 'This link has expired. Ask whoever shared it for a new one.',
+  e_plan_public_links: 'Public links are part of the Team and Business plans.', e_share_expiry_past: 'Choose an end date from today on.',
+  e_share_link_limit: 'This project has the most public links allowed (20). Revoke one first.', e_share_views: 'Choose at least one view.',
 };
 
 const ar: typeof en = {
@@ -499,6 +510,17 @@ const ar: typeof en = {
   e_plan_no_guests: 'الضيوف ضمن باقتي الفريق والأعمال.', e_last_owner: 'تحتاج المؤسسة إلى مالك واحد على الأقل.',
   e_owner_only: 'هذا متاح للمالك فقط.',
   readOnlyPlan: 'للقراءة فقط: تسمح باقتك بعدد أقل من المشاريع النشطة مما لدى هذه المؤسسة. رقِّ باقتك أو أرشف المشاريع التي لم تعد تحتاجها.',
+  share: 'مشاركة', shareTitle: 'روابط عامة للقراءة فقط',
+  shareHint: 'يرى كل من لديه الرابط هذا المشروع للقراءة فقط دون تسجيل الدخول. لا تظهر التعليقات وسجل النشاط والملاحظات وعناوين البريد أبدًا.',
+  shareViews: 'طرق العرض المعروضة', shareOwners: 'إظهار أسماء المسؤولين', shareOwnersHidden: 'أسماء المسؤولين مخفية', shareExpires: 'يتوقف بعد تاريخ (اختياري)',
+  shareCreate: 'إنشاء رابط', shareNewOnce: 'انسخ الرابط الآن: يظهر مرة واحدة فقط. إن فُقد، ألغِه وأنشئ رابطًا جديدًا.',
+  shareNone: 'لا توجد روابط عامة بعد.', shareNoExpiry: 'دون تاريخ انتهاء', shareNeedsPlan: 'الروابط العامة ضمن باقتي الفريق والأعمال.',
+  sharedNote: 'مشارَك عبر WBS Master — للقراءة فقط', shareUntil: 'يعمل هذا الرابط حتى {date}.', shareArchived: 'هذا المشروع مؤرشف.',
+  a_share_create: 'أنشأ {who} رابطًا عامًا للقراءة فقط', a_share_revoke: 'ألغى {who} رابطًا عامًا للقراءة فقط',
+  e_share_not_found: 'هذا الرابط غير صالح. ربما أُلغي؛ اطلب رابطًا جديدًا ممن شاركه.',
+  e_share_expired: 'انتهت صلاحية هذا الرابط. اطلب رابطًا جديدًا ممن شاركه.',
+  e_plan_public_links: 'الروابط العامة ضمن باقتي الفريق والأعمال.', e_share_expiry_past: 'اختر تاريخ انتهاء من اليوم فصاعدًا.',
+  e_share_link_limit: 'بلغ هذا المشروع الحد الأقصى للروابط العامة (20). ألغِ أحدها أولًا.', e_share_views: 'اختر طريقة عرض واحدة على الأقل.',
 };
 
 export type MessageKey = keyof typeof en;

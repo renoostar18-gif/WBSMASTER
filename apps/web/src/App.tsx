@@ -9,6 +9,7 @@ import { MembersPage } from './pages/Members.js';
 import { PortfolioPage } from './pages/Portfolio.js';
 import { ProjectsPage } from './pages/Projects.js';
 import { SettingsPage } from './pages/Settings.js';
+import { SharePage } from './pages/Share.js';
 import { ProjectPage } from './project/ProjectPage.js';
 import { SessionProvider, useSession } from './session.js';
 import { ToastProvider } from './ui.js';
@@ -46,6 +47,7 @@ export function App() {
               <Route path="/billing/:orgId" element={<Private><BillingPage /></Private>} />
               <Route path="/members/:orgId" element={<Private><MembersPage /></Private>} />
               <Route path="/invite/:token" element={<InvitePage />} />
+              <Route path="/share/:token" element={<SharePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
