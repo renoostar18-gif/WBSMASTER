@@ -73,13 +73,13 @@ variable "moyasar_webhook_secret" {
 variable "seller_name" {
   description = "Seller name on invoices (the registered company name)."
   type        = string
-  default     = ""
+  default     = "Raysha"
 }
 
 variable "seller_name_ar" {
   description = "Seller name in Arabic on invoices."
   type        = string
-  default     = ""
+  default     = "ريشة"
 }
 
 variable "seller_address" {
@@ -95,9 +95,15 @@ variable "seller_cr" {
 }
 
 variable "seller_vat_number" {
-  description = "VAT registration number. Leave empty while not VAT registered: invoices then have no VAT. Set it once registered to add 15% VAT and the ZATCA QR code."
+  description = "VAT registration number. With it, invoices are tax invoices with the ZATCA QR code."
   type        = string
   default     = ""
+}
+
+variable "vat_enabled" {
+  description = "Add 15% VAT to prices. Only VAT-registered sellers may charge VAT: set seller_vat_number before taking payments with this on."
+  type        = bool
+  default     = true
 }
 
 variable "alert_email" {

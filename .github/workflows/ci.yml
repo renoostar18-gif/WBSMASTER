@@ -89,6 +89,9 @@ jobs:
       - name: Billing test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Billing" env WEB_URL=http://localhost:3000 node e2e/billing.mjs
+      - name: Invitations test
+        working-directory: apps/web
+        run: ../../scripts/ci-e2e.sh "Invitations" env WEB_URL=http://localhost:3000 node e2e/invites.mjs
 
   image:
     runs-on: ubuntu-latest

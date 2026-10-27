@@ -11,7 +11,11 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
   const nav = useNavigate();
   const location = useLocation();
   // coming back from a company sign-in that failed: say why
-  const ssoError = new URLSearchParams(location.search).get('sso_error');
+  const params = new URLSearchParams(location.search);
+  const ssoError = params.get('sso_error');
+  // where to go afterwards (an invitation page), only within this site
+  const next = params.get('next');
+  const after = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
   const [err, setErr] = useState(() => (ssoError ? error(ssoError) : ''));
   const [busy, setBusy] = useState(false);
   const [sso, setSso] = useState(!!ssoError);
@@ -41,7 +45,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
       if (mode === 'signup') await api.post('/auth/signup', { ...body, locale });
       else await api.post('/auth/login', body);
       await refresh();
-      nav('/');
+      nav(after);
     } catch (x) {
       const code = x instanceof ApiError
         ? (x.code === 'invalid_request' && JSON.stringify(x.details ?? '').includes('password_too_short') ? 'password_too_short' : x.code)
@@ -71,7 +75,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
         ) : (
         <form className="card" onSubmit={submit}>
           {mode === 'signup' && <label className="fld"><span>{t('yourName')}</span><input name="name" required autoComplete="name" /></label>}
-          <label className="fld"><span>{t('email')}</span><input name="email" type="email" required autoComplete="email" /></label>
+          <label className="fld"><span>{t('email')}</span><input name="email" type="email" required autoComplete="email" defaultValue={params.get('email') ?? ''} /></label>
           <label className="fld">
             <span>{t('password')}</span>
             <input name="password" type="password" required minLength={mode === 'signup' ? 10 : undefined} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />

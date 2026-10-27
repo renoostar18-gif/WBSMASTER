@@ -119,6 +119,12 @@ describe('prices and periods', () => {
     expect(plain).not.toContain('Tax invoice');
     expect(plain).not.toContain('<svg');
     expect(plain).toContain('not registered for VAT');
+    // VAT switched on before a VAT number exists: the VAT is shown, but it is not a tax invoice and has no QR code
+    const vatNoNumber = await renderInvoice({ ...inv, seller: { ...inv.seller!, vatNumber: null } });
+    expect(vatNoNumber).not.toContain('Tax invoice');
+    expect(vatNoNumber).not.toContain('<svg');
+    expect(vatNoNumber).toContain('VAT 15%');
+    expect(vatNoNumber).not.toContain('not registered for VAT');
   });
 });
 
@@ -150,7 +156,7 @@ describe('billing routes', () => {
   it('shows owners the plan and prices; others cannot see billing', async () => {
     const r = await owner.get(`/api/orgs/${orgId}/billing`);
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ plan: 'free', members: 1, trialAvailable: true, payments: true, vatRegistered: false, prices: { team: { month: 4500 } } });
+    expect(r.body).toMatchObject({ plan: 'free', members: 1, trialAvailable: true, payments: true, vatRate: 0, prices: { team: { month: 4500 } } });
     const admin = await Client.signUp(t.app, 'Admin');
     await owner.post(`/api/orgs/${orgId}/members`, { email: 'admin@example.com', role: 'admin' });
     expect((await admin.client.get(`/api/orgs/${orgId}/billing`)).status).toBe(403);

@@ -16,7 +16,7 @@ interface Billing {
   current: { plan: PaidPlan; interval: Interval; seats: number; periodStart: string; periodEnd: string } | null;
   paidUntil: string | null; inGrace: boolean; renewed: boolean;
   trial: { plan: PaidPlan; ends: string } | null; trialAvailable: boolean; trialDays: number;
-  payments: boolean; vatRegistered: boolean; comped: boolean;
+  payments: boolean; vatRate: number; comped: boolean;
   prices: Record<PaidPlan, Record<Interval, number>>;
   profile: { name: string; address: string; vatNumber: string; email: string };
   invoices: Invoice[];
@@ -183,7 +183,7 @@ export function BillingPage() {
                 <label key={p} className={`plan-card${plan === p ? ' on' : ''}`}>
                   <input type="radio" name="plan" value={p} checked={plan === p} onChange={() => setPlan(p)} />
                   <b>{t(`plan_${p}`)}</b>
-                  <span className="price">{money(perMonth(p, interval))} <small>{t('perSeatMonth')}</small></span>
+                  <span className="price">{money(perMonth(p, interval))} <small>{t('perSeatMonth')}{b.vatRate > 0 ? ` ${t('plusVat', { rate: b.vatRate })}` : ''}</small></span>
                   <span className="hint">{interval === 'year' ? t('billedYearly', { amount: money(b.prices[p].year) }) : t('billedMonthly')}</span>
                   <span className="hint">{t(`planPitch_${p}`)}</span>
                 </label>

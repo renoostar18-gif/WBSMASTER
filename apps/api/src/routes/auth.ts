@@ -6,6 +6,7 @@ import { createSession, deleteSession, hashPassword, verifyPassword } from '../a
 import { type Tx, tx } from '../db.js';
 import { ApiError } from '../errors.js';
 import { requireSsoFor } from './sso.js';
+import { acceptInvitation } from '../invites.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(10, 'password_too_short').max(200);
@@ -39,6 +40,8 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
       name: z.string().trim().min(1).max(120),
       organisation: z.string().trim().min(1).max(200).optional(),
       locale: z.enum(['en', 'ar']).optional(),
+      /** The token from an invitation link: join that organisation instead of creating one. */
+      invite: z.string().max(100).optional(),
     }), req.body);
     await requireSsoFor(deps.db, body.email);
     const out = await tx(deps.db, async c => {
@@ -49,7 +52,9 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
         [body.email, body.name, await hashPassword(body.password), body.locale ?? 'en'],
       );
       const userId = u.rows[0]!.id;
-      const orgId = await createOrganisation(c, body.organisation ?? `${body.name}'s workspace`, userId, now());
+      const orgId = body.invite
+        ? await acceptInvitation(c, body.invite, { id: userId, email: body.email })
+        : await createOrganisation(c, body.organisation ?? `${body.name}'s workspace`, userId, now());
       const token = await createSession(c, userId, deps.config.sessionDays);
       return { userId, orgId, token };
     });
