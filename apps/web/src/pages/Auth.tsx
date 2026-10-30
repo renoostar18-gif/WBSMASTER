@@ -82,6 +82,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
             <input name="password" type="password" required minLength={mode === 'signup' ? 10 : undefined} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
             {mode === 'signup' && <span className="hint">{t('passwordHint')}</span>}
           </label>
+          {mode === 'signin' && import.meta.env.MODE !== 'demo' && <Link className="hint" to="/forgot">{t('forgotLink')}</Link>}
           {mode === 'signup' && <label className="fld"><span>{t('organisation')}</span><input name="organisation" autoComplete="organization" /></label>}
           {err && <div className="err" role="alert">{err}</div>}
           <button className="btn primary" disabled={busy} type="submit">{mode === 'signin' ? t('signIn') : t('signUp')}</button>

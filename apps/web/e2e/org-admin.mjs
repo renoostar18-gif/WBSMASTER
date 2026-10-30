@@ -5,6 +5,7 @@
 //   node e2e/org-admin.mjs [screenshotDir]
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
+import { confirmEmail } from './confirm-email.mjs';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:5173';
 const API = `${BASE}/api`;
@@ -24,6 +25,7 @@ const orgName = `Delta Build ${stamp}`;
 const huda = await (await hudaCtx.request.post(`${API}/auth/signup`, { data: { email: `huda${stamp}@example.com`, password: 'correct horse battery', name: 'Huda', organisation: orgName } })).json();
 const ramiCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const rami = await (await ramiCtx.request.post(`${API}/auth/signup`, { data: { email: `rami${stamp}@example.com`, password: 'correct horse battery', name: 'Rami' } })).json();
+await confirmEmail(API, `rami${stamp}@example.com`);
 await hudaCtx.request.post(`${API}/orgs/${huda.orgId}/members`, { data: { email: `rami${stamp}@example.com`, role: 'member' } });
 await hudaCtx.request.post(`${API}/orgs/${huda.orgId}/projects`, { data: { name: 'Warehouse' } });
 

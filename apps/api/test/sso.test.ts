@@ -139,11 +139,26 @@ describe('single sign-on', () => {
   });
 
   it('signs an existing password account in as the same person', async () => {
-    const existing = await new Client(t.app).post('/api/auth/signup', { email: 'omar@acme.sa', password: 'correct horse battery', name: 'Omar' });
+    // Omar confirmed his email when he signed up, so his password keeps working afterwards
+    const existing = await Client.signUp(t.app, 'Omar', { email: 'omar@acme.sa' });
     idp.as({ email: 'omar@acme.sa', email_verified: true, name: 'Omar K.' });
     const r = await signInWithSso('omar@acme.sa');
     const me = JSON.parse((await t.app.inject({ method: 'GET', url: '/api/me', headers: { cookie: r.cookie } })).body);
-    expect(me.user.id).toBe(existing.body.user.id);
+    expect(me.user.id).toBe(existing.userId);
+    expect(me.user.emailVerified).toBe(true);
+  });
+
+  it('takes over an account someone made with the address but never confirmed: its password and sessions stop', async () => {
+    // someone signs up as Huda before she does, and never confirms the address
+    const squatter = await Client.signUp(t.app, 'Not Huda', { email: 'huda@acme.sa' }, { verify: false });
+    idp.as({ email: 'huda@acme.sa', email_verified: true, name: 'Huda' });
+    const r = await signInWithSso('huda@acme.sa');
+    expect(r.status).toBe(302);
+    expect((await squatter.client.get('/api/me')).status).toBe(401);
+    const login = await new Client(t.app).post('/api/auth/login', { email: 'huda@acme.sa', password: 'correct horse battery' });
+    expect(login.status).not.toBe(200);
+    const me = JSON.parse((await t.app.inject({ method: 'GET', url: '/api/me', headers: { cookie: r.cookie } })).body);
+    expect(me.user).toMatchObject({ email: 'huda@acme.sa', emailVerified: true });
   });
 
   it('refuses answers for another domain, unverified emails, and reused sign-ins', async () => {

@@ -1,6 +1,7 @@
 // Two people on one project: presence, selection badges and live updates without reloading.
 // Run with the API and web app running:  node e2e/collab.mjs [screenshotDir]
 import { chromium } from 'playwright';
+import { confirmEmail } from './confirm-email.mjs';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:5173';
 const API = `${BASE}/api`;
@@ -12,7 +13,9 @@ const stamp = Date.now();
 // set up through the API: owner with a project, and a colleague who is an editor on it
 async function account(name) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 } });
-  const r = await ctx.request.post(`${API}/auth/signup`, { data: { email: `${name.toLowerCase()}${stamp}@example.com`, password: 'correct horse battery', name } });
+  const email = `${name.toLowerCase()}${stamp}@example.com`;
+  const r = await ctx.request.post(`${API}/auth/signup`, { data: { email, password: 'correct horse battery', name } });
+  await confirmEmail(API, email);
   return { ctx, body: await r.json() };
 }
 const a = await account('Rayan');

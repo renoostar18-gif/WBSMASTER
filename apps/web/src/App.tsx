@@ -3,6 +3,7 @@ import { BrowserRouter, MemoryRouter, Navigate, Route, Routes, useLocation } fro
 import { DEMO } from './api.js';
 import { I18nProvider } from './i18n.js';
 import { AuditPage } from './pages/Audit.js';
+import { ForgotPage, ResetPage, VerifyPage } from './pages/Account.js';
 import { AuthPage } from './pages/Auth.js';
 import { BillingPage } from './pages/Billing.js';
 import { InvitePage } from './pages/Invite.js';
@@ -50,6 +51,9 @@ export function App() {
               <Route path="/members/:orgId" element={<Private><MembersPage /></Private>} />
               <Route path="/audit/:orgId" element={<Private><AuditPage /></Private>} />
               <Route path="/invite/:token" element={<InvitePage />} />
+              <Route path="/verify/:token" element={<VerifyPage />} />
+              <Route path="/forgot" element={<PublicOnly><ForgotPage /></PublicOnly>} />
+              <Route path="/reset/:token" element={<ResetPage />} />
               <Route path="/share/:token" element={<SharePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
