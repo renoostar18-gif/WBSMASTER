@@ -11,7 +11,9 @@ export interface ProjectPayload {
   project: {
     id: string; orgId: string; name: string; version: number; calendarId: string | null; locale: string; archived: boolean;
     /** Why the project cannot be edited by anyone: archived, or beyond the plan's active projects after a downgrade. */
-    readOnly?: 'archived' | 'plan' | null;
+    readOnly?: 'archived' | 'plan' | 'deletion' | null;
+    /** The organisation waits to be deleted on this date (owners only see it then). */
+    deleteOn?: string | null;
     settings: ProjectSettings;
   };
   role: Role;
@@ -259,7 +261,7 @@ export function useProject(projectId: string, me: string | null, onRemoteChange?
   }), [projectId, baselineAction]);
 
   const activity = useCallback(
-    (before?: number, itemId?: string) => api.get<{ activity: ActivityEntry[] }>(
+    (before?: number, itemId?: string) => api.get<{ activity: ActivityEntry[]; retentionDays?: number | null; canExport?: boolean }>(
       `/projects/${projectId}/activity?${new URLSearchParams({ ...(before ? { before: String(before) } : {}), ...(itemId ? { itemId } : {}) })}`),
     [projectId]);
 

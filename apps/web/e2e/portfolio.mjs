@@ -55,6 +55,8 @@ check(true, 'the Free plan shows what the portfolio needs');
 await db.query("update organisations set plan = 'team' where id = $1", [orgId]);
 await pa.getByRole('button', { name: 'Refresh' }).click();
 await pa.getByText('Executive portfolio summary').waitFor();
+// the heading can show before the table is filled in: wait for both projects' rows
+await pa.locator('table.rt tbody tr .linkish').nth(1).waitFor();
 await shot(pa, '20-portfolio-exec');
 const names = await pa.locator('table.rt tbody tr .linkish').allInnerTexts();
 check(names[0] === 'Busbar redesign' && names[1] === 'Panel retrofit', 'projects are listed worst first');

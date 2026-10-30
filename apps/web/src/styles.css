@@ -426,6 +426,8 @@ h4.sub { margin: 4px 0 0; font-size: 11px; text-transform: uppercase; letter-spa
 .row-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .row-form .fld { width: auto; min-width: 160px; }
 .row-form .fld.grow { flex: 1 1 280px; }
+.sec.danger-zone { border-color: var(--danger); }
+.newp.org { margin-block-start: 12px; }
 .row-form .events { border: 0; padding: 0; margin: 0; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .row-form .events legend { font-size: 11.5px; color: var(--muted); padding: 0; margin-block-end: 4px; }
 .secret { border: 1px solid var(--accent); background: var(--sel); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }

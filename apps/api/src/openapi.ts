@@ -105,7 +105,23 @@ export const openApi = {
     },
     '/projects/{projectId}/activity': {
       parameters: [P],
-      get: { summary: 'Change history, newest first (100 at a time)', parameters: [{ name: 'before', in: 'query', schema: { type: 'integer' } }, { name: 'itemId', in: 'query', schema: { type: 'string' } }], responses: ok({ type: 'object' }) },
+      get: { summary: 'Change history, newest first (100 at a time); kept 30 days on Free, a year on Team, always on Business', parameters: [{ name: 'before', in: 'query', schema: { type: 'integer' } }, { name: 'itemId', in: 'query', schema: { type: 'string' } }], responses: ok({ type: 'object' }) },
+    },
+    '/projects/{projectId}/activity.csv': {
+      parameters: [P],
+      get: { summary: 'The whole change history as CSV (Business plan)', responses: { 200: { description: 'CSV file', content: { 'text/csv': { schema: { type: 'string' } } } }, default: { $ref: '#/components/responses/Error' } } },
+    },
+    '/orgs/{orgId}/audit': {
+      parameters: [O],
+      get: { summary: 'Audit log of organisation events, newest first (organisation admins)', parameters: [
+        { name: 'action', in: 'query', description: 'An action such as member.added, or a group such as member', schema: { type: 'string' } },
+        { name: 'before', in: 'query', description: 'The `next` value of the previous page', schema: { type: 'integer' } },
+        { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200, default: 50 } },
+      ], responses: ok({ type: 'object' }) },
+    },
+    '/orgs/{orgId}/audit.csv': {
+      parameters: [O],
+      get: { summary: 'The audit log as CSV (organisation admins, Business plan)', responses: { 200: { description: 'CSV file', content: { 'text/csv': { schema: { type: 'string' } } } }, default: { $ref: '#/components/responses/Error' } } },
     },
     '/projects/{projectId}/comments': {
       parameters: [P],

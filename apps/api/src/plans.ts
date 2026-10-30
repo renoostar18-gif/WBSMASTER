@@ -15,14 +15,18 @@ export interface PlanLimits {
   sso: boolean;
   /** Public read-only links to a project, for people without an account (spec 3.4). */
   publicLinks: boolean;
+  /** Days of project activity and audit log kept (spec 3.4); older entries are deleted by the daily job. */
+  historyDays: number;
+  /** Activity and audit log export to CSV (spec 3.4). */
+  historyExport: boolean;
   /** USD per user per month, monthly billing. Annual billing is 20% less. */
   priceMonthlyUsd: number;
 }
 
 export const PLANS: Record<Plan, PlanLimits> = {
-  free: { members: 3, activeProjects: 3, itemsPerProject: 500, baselinesPerProject: 1, portfolio: false, guests: false, multipleCalendars: false, api: false, sso: false, publicLinks: false, priceMonthlyUsd: 0 },
-  team: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: false, api: true, sso: false, publicLinks: true, priceMonthlyUsd: 12 },
-  business: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: true, api: true, sso: true, publicLinks: true, priceMonthlyUsd: 24 },
+  free: { members: 3, activeProjects: 3, itemsPerProject: 500, baselinesPerProject: 1, portfolio: false, guests: false, multipleCalendars: false, api: false, sso: false, publicLinks: false, historyDays: 30, historyExport: false, priceMonthlyUsd: 0 },
+  team: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: false, api: true, sso: false, publicLinks: true, historyDays: 365, historyExport: false, priceMonthlyUsd: 12 },
+  business: { members: Infinity, activeProjects: Infinity, itemsPerProject: 10_000, baselinesPerProject: Infinity, portfolio: true, guests: true, multipleCalendars: true, api: true, sso: true, publicLinks: true, historyDays: Infinity, historyExport: true, priceMonthlyUsd: 24 },
 };
 
 export const ANNUAL_DISCOUNT = 0.2;
