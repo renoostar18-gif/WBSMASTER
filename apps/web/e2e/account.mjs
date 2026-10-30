@@ -24,6 +24,16 @@ async function linkFor(email, purpose) {
   return `${BASE}/${purpose}/${token}`;
 }
 const errors = [];
+/** Wait for a message; if it never comes, say what the page shows instead (an error, usually). */
+async function see(p, text) {
+  try {
+    await p.getByText(text).first().waitFor({ timeout: 20_000 });
+  } catch {
+    const alerts = await p.locator('[role=alert]').allInnerTexts().catch(() => []);
+    const body = (await p.textContent('body').catch(() => '') ?? '').replace(/\s+/g, ' ').slice(0, 400);
+    throw new Error(`"${text}" did not appear at ${p.url()}; alerts: ${alerts.join(' | ') || 'none'}; page: ${body}`);
+  }
+}
 const watch = p => { p.on('pageerror', e => errors.push(e.message)); return p; };
 
 // ---- signing up: a banner until the address is confirmed ----
@@ -41,17 +51,17 @@ await banner.waitFor();
 check(true, 'after signing up, a banner asks to confirm the email');
 if (shots) await page.screenshot({ path: `${shots}/80-confirm-banner.png` });
 await page.getByRole('button', { name: 'Send the link again' }).click();
-await page.getByText('Sent. Check your inbox.').waitFor();
+await see(page, 'Sent. Check your inbox.');
 check(true, 'the link can be sent again');
 
 const confirmLink = await linkFor(email, 'verify');
 await page.goto(confirmLink);
-await page.getByText('Thank you, your email address is confirmed.').waitFor();
+await see(page, 'Thank you, your email address is confirmed.');
 await page.getByRole('link', { name: 'Projects' }).last().click();
 await page.getByRole('heading', { name: 'Projects', exact: true }).waitFor();
 check(await banner.count() === 0, 'the link confirms the address and the banner goes away');
 await page.goto(confirmLink);
-await page.getByText('This link has expired or was already used.').waitFor();
+await see(page, 'This link has expired or was already used.');
 check(true, 'a used confirmation link says so');
 
 // ---- forgotten password ----
@@ -61,7 +71,7 @@ await p.goto(`${BASE}/signin`);
 await p.getByRole('link', { name: 'Forgot your password?' }).click();
 await p.getByLabel('Email').fill(email.toUpperCase());
 await p.getByRole('button', { name: 'Send the link' }).click();
-await p.getByText('If there is an account for that email').waitFor();
+await see(p, 'If there is an account for that email');
 check(true, 'asking for a reset link gives the same answer whether or not the account exists');
 await p.goto(await linkFor(email, 'reset'));
 await p.getByRole('heading', { name: 'Choose a new password' }).waitFor();
