@@ -48,13 +48,13 @@ Each fix has tests in `apps/api/test/security.test.ts`, `apps/api/test/sso.test.
 
 ### Known limitations and follow-ups
 
-- **Email addresses are not verified at sign-up (High, not fixed).** Someone can create an account for
-  an address they do not own. When an admin then adds that address, an existing account joins
-  straight away, so the person who registered it first gets in; and an account made before a company
-  set up SSO keeps its password after the real owner signs in with SSO. Fix: verify email at sign-up
-  (or treat unverified accounts like people without an account and send them the invitation link), and
-  remove the password of an unverified account on its first SSO sign-in. This changes the sign-up and
-  invitation flows, so it needs product decisions and its own change.
+- **Email addresses were not verified at sign-up (High, fixed afterwards).** Someone could create an
+  account for an address they do not own; an admin adding that address then let them in, and an account
+  made before a company set up SSO kept its password. Fixed: sign-up sends a confirmation link (3 days),
+  and only confirmed accounts are added to an organisation at once; anyone else gets the invitation link,
+  which only reaches the real inbox. An invitation link, a password reset link or SSO also confirms the
+  address. On the first SSO sign-in to an unconfirmed account, its password and sessions are removed.
+  The same change added password reset (a one-hour, single-use link; all other sessions are signed out).
 - **Client address behind the load balancer.** With `TRUST_PROXY=1` the left-most X-Forwarded-For
   address is used, which a client can set. Check the header in production and set `TRUST_PROXY` to the
   number of trusted hops (likely 2 for the regional load balancer in front of Cloud Run). Cloud Armor's

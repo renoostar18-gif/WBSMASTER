@@ -470,3 +470,4 @@ code.record { font-family: var(--f-mono); font-size: 12px; background: var(--bg)
 .share-title { margin: 0; font-size: 16px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .demo-chip.share-chip, [dir="rtl"] .demo-chip.share-chip { padding: 4px 12px; }
 .share-foot { margin: 0; padding: 6px 16px; border-block-start: 1px solid var(--line); background: var(--panel); }
+.shell > .notice.confirm-email { border-inline-start-color: var(--accent); }

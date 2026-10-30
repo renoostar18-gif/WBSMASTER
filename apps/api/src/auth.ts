@@ -45,6 +45,8 @@ export interface SessionUser {
   theme: string;
   /** Email for notifications: each one at once, a daily digest, or none. */
   notifyEmail: 'instant' | 'daily' | 'off';
+  /** Whether the person confirmed their email address (by a link, an invitation or single sign-on). */
+  emailVerified: boolean;
   /** Set when the request came with an API key instead of a session. */
   apiKey?: { id: string; orgId: string; scope: 'read' | 'write' } | null;
 }
@@ -55,7 +57,7 @@ export async function userForToken(db: Queryable, token: string | undefined): Pr
     `update sessions s set last_seen_at = now()
        from users u
       where s.token_hash = $1 and s.expires_at > now() and u.id = s.user_id
-      returning u.id, u.email, u.name, u.locale, u.theme, u.notify_email as "notifyEmail"`,
+      returning u.id, u.email, u.name, u.locale, u.theme, u.notify_email as "notifyEmail", u.email_verified_at is not null as "emailVerified"`,
     [hashToken(token)],
   );
   return r.rows[0] ?? null;

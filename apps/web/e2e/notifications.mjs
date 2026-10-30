@@ -1,6 +1,7 @@
 // Notifications: a mention and an assignment reach the other person's bell, open the right item, and the email setting sticks.
 // Run with the API and web app running:  node e2e/notifications.mjs [screenshotDir]
 import { chromium } from 'playwright';
+import { confirmEmail } from './confirm-email.mjs';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:5173';
 const API = `${BASE}/api`;
@@ -11,7 +12,9 @@ const stamp = Date.now();
 
 async function account(name) {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
-  const r = await ctx.request.post(`${API}/auth/signup`, { data: { email: `${name.split(' ')[0].toLowerCase()}${stamp}@example.com`, password: 'correct horse battery', name } });
+  const email = `${name.split(' ')[0].toLowerCase()}${stamp}@example.com`;
+  const r = await ctx.request.post(`${API}/auth/signup`, { data: { email, password: 'correct horse battery', name } });
+  await confirmEmail(API, email);
   return { ctx, body: await r.json() };
 }
 const a = await account('Rayan Hamdan');

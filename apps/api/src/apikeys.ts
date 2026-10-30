@@ -20,7 +20,7 @@ export async function userForApiKey(db: Queryable, key: string): Promise<Session
   const m = FORMAT.exec(key);
   if (!m) return null;
   const r = await db.query<SessionUser & { key_id: string; key_hash: string; org_id: string; scope: 'read' | 'write'; last_used_at: Date | null }>(
-    `select u.id, u.email, u.name, u.locale, u.theme, u.notify_email as "notifyEmail",
+    `select u.id, u.email, u.name, u.locale, u.theme, u.notify_email as "notifyEmail", u.email_verified_at is not null as "emailVerified",
             k.id as key_id, k.key_hash, k.org_id, k.scope, k.last_used_at
        from api_keys k join users u on u.id = k.user_id
       where k.prefix = $1 and k.revoked_at is null`, [m[1]]);

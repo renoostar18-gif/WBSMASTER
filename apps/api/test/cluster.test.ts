@@ -5,7 +5,7 @@ import { loadConfig } from '../src/config.js';
 import { LiveHub, PgBus } from '../src/live.js';
 import { LogMailer } from '../src/mailer.js';
 import { migrate } from '../src/migrate.js';
-import { Client, TEST_DB, TODAY, type TestApp, startApp } from './setup.js';
+import { Client, TEST_DB, TODAY, type TestApp, startApp, trackMail } from './setup.js';
 
 /** Two API instances on one database, as on Cloud Run with more than one instance. */
 let t: TestApp;
@@ -17,7 +17,9 @@ beforeAll(async () => {
     const bus = new PgBus(TEST_DB, t.db);
     await bus.start();
     const live = new LiveHub(bus);
-    const app = buildApp({ db: t.db, config: { ...loadConfig(), databaseUrl: TEST_DB }, today: () => TODAY, mailer: new LogMailer(true), live });
+    const mailer = new LogMailer(true);
+    const app = buildApp({ db: t.db, config: { ...loadConfig(), databaseUrl: TEST_DB }, today: () => TODAY, mailer, live });
+    trackMail(app, mailer);
     await app.listen({ port: 0, host: '127.0.0.1' });
     const addr = app.server.address();
     apps.push({ app, live, ws: `ws://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}` });
