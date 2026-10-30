@@ -25,6 +25,8 @@ export interface Config {
    * trusts that many hops from the right, so a client cannot choose its own address.
    */
   trustProxy: boolean | number;
+  /** Requests per minute from one address to public read-only links. */
+  shareRateLimit: number;
   /** Allow webhooks and SSO providers on private and local addresses (development and tests only). */
   webhookAllowPrivate: boolean;
   /** Encrypts secrets kept in the database (SSO client secrets). Without it in production, SSO cannot be set up. */
@@ -61,6 +63,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mailFrom: env.MAIL_FROM ?? 'WBS Master <no-reply@wbs-master.example>',
     apiRateLimit: Number(env.API_RATE_LIMIT ?? 300),
     authRateLimit: Number(env.AUTH_RATE_LIMIT ?? 20),
+    shareRateLimit: Number(env.SHARE_RATE_LIMIT ?? 60),
     loginFailureLimit: Number(env.LOGIN_FAILURE_LIMIT ?? 10),
     trustProxy: env.TRUST_PROXY === '1' ? true : Number(env.TRUST_PROXY) >= 2 ? Number(env.TRUST_PROXY) : false,
     webhookAllowPrivate: env.WEBHOOK_ALLOW_PRIVATE ? env.WEBHOOK_ALLOW_PRIVATE === '1' : env.NODE_ENV !== 'production',

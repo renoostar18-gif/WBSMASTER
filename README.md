@@ -46,6 +46,7 @@ it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
 `node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`) and
 `node apps/web/e2e/sso.mjs` (single sign-on with a fake identity provider; the API needs `SSO_ALLOW_HTTP=1`
 and `APP_URL` set to the web address) and `node apps/web/e2e/invites.mjs` (inviting from the Members page and joining from the link; needs `DATABASE_URL`) and
+`node apps/web/e2e/share.mjs` (a public read-only link: created, opened signed out in English and Arabic, revoked; needs `DATABASE_URL`) and
 `node apps/web/e2e/org-admin.mjs` (transferring ownership, the audit log, scheduling and cancelling a deletion, a
 deletion run by the daily job, then starting again with no organisation; needs `DATABASE_URL` and `pnpm build`) and
 `node apps/web/e2e/billing.mjs` (trial, then paying on a fake Moyasar page;
@@ -145,6 +146,26 @@ account signs in from the link and comes back to it. A link only works for the e
 only once; sending again makes a new link and the old one stops working. Open invitations for members
 hold a seat, so an organisation cannot invite more people than its plan or paid seats allow.
 
+## Public read-only links
+
+Team and Business plans (spec 3.4). A project admin selects **Share** on the project page to create a
+link for someone without an account, such as a client: choose the views it shows (Table, Chart, Gantt,
+Summary; all by default), whether owners' names are shown, and optionally the last day it works. The link
+(`/share/<token>`) is shown once to copy; only its sha-256 is stored. A project can have up to 20 links,
+each revoked on its own; to change one, revoke it and create another. Creating and revoking links is
+recorded in the project's activity.
+
+Anyone with the link sees the plan read-only, in English or Arabic, without signing in: the project name,
+the chosen views with health colours and dates, and a "Shared with WBS Master — read-only" note. It never
+shows comments, activity, notes, baseline reasons, members or their emails, presence, or anything from
+other projects; summary text only with the Summary view. A link stops working when it is revoked or
+expires, when the project is deleted, or as soon as the organisation is on the Free plan (checked on every
+read, so upgrading again brings it back). Archived projects stay visible through their links, read-only
+as always, with an "archived" note. Links cannot be created with an API key.
+
+The share API and page send `X-Robots-Tag: noindex` and `Referrer-Policy: no-referrer`, and the page adds
+a robots `noindex` meta tag. `GET /api/share/:token` is limited to 60 requests a minute per address
+(`SHARE_RATE_LIMIT`).
 ## Organisation administration
 
 **Transferring ownership.** On the Members page an owner picks another member, who becomes an owner
@@ -254,6 +275,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | API keys | `GET/POST /me/api-keys`, `DELETE /me/api-keys/:id` (signed-in sessions only) |
 | Webhooks | `GET/POST /orgs/:orgId/webhooks`, `PATCH/DELETE .../:id`, `POST .../:id/test`, `GET .../:id/deliveries` |
 | Single sign-on | `GET/PUT/DELETE /orgs/:orgId/sso`, `POST /orgs/:orgId/sso/domains`, `POST .../domains/:domain/verify`, `DELETE .../domains/:domain`; `POST /auth/sso/start` (`{ email }` → `{ url }`), `GET /auth/sso/callback` |
+| Public links | `GET/POST /projects/:id/links` (`{ views, showOwners, expiresOn }` → `{ url }`, shown once), `DELETE /projects/:id/links/:lid` (project admins, Team and Business); `GET /share/:token` (no sign-in) |
 | Invitations | `POST /orgs/:orgId/members` (`{ email, role }`: adds or invites), `GET /orgs/:orgId/invitations`, `POST .../invitations/:id/resend`, `DELETE .../invitations/:id`; `GET /invitations/:token`, `POST /invitations/:token/accept`; `POST /auth/signup` with `invite` |
 | Billing (owners, signed-in sessions only) | `GET /orgs/:orgId/billing`, `PUT .../billing/profile`, `POST .../billing/trial`, `POST .../billing/quote` and `.../billing/checkout` (`{ plan, interval, seats, renew? }`; checkout → `{ url }` of Moyasar's page), `GET .../billing/invoices/:id` (HTML); `GET /billing/return`, `POST /billing/moyasar/notify` |
 | Notifications | `GET /notifications`, `GET /notifications/unread`, `POST /notifications/read` (`{ ids }`, or all); `PATCH /me` with `notifyEmail`: `instant`, `daily` or `off` |

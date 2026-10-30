@@ -84,5 +84,6 @@ export const Icon = {
   portfolio: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13.5h12M4 11V7M8 11V3.5M12 11V5.5" /></svg>,
   importIcon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2v8m-3-3 3 3 3-3M3 12.5h10" /></svg>,
   exportIcon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10V2m-3 3 3-3 3 3M3 12.5h10" /></svg>,
+  share: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="flip"><path d="M6.5 9.5 9.5 6.5M7 4.5l1.6-1.6a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5l-1.6 1.6a2.5 2.5 0 0 1-3.5-3.5L5.5 8" /></svg>,
   gear: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" /></svg>,
 };
