@@ -12,7 +12,7 @@ describe('sign-up and sign-in', () => {
     const { client, orgId } = await Client.signUp(t.app, 'Rayan', { organisation: 'Acme' });
     const me = await client.get('/api/me');
     expect(me.body.user.name).toBe('Rayan');
-    expect(me.body.organisations).toEqual([{ id: orgId, name: 'Acme', plan: 'free', role: 'owner' }]);
+    expect(me.body.organisations).toEqual([{ id: orgId, name: 'Acme', plan: 'free', role: 'owner', deleteOn: null }]);
     const cals = await client.get(`/api/orgs/${orgId}/calendars`);
     const cal = cals.body.calendars[0];
     expect(cal.weekDays).toEqual([0, 1, 2, 3, 4]);

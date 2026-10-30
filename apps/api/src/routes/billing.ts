@@ -10,6 +10,7 @@ import { tx } from '../db.js';
 import { ApiError, badRequest, conflict, notFound } from '../errors.js';
 import { Moyasar, MoyasarError, invoiceIdsIn, secretMatches } from '../moyasar.js';
 import { orgAccess } from '../permissions.js';
+import { audit, by } from '../audit.js';
 
 type O = { Params: { orgId: string } };
 const choice = z.object({
@@ -96,6 +97,7 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       if (o.trial_ends) throw conflict('trial_used');
       if ((await loadBillingState(c, req.params.orgId, today())).current) throw conflict('trial_paid_plan');
       await c.query('update organisations set trial_plan = $2, trial_ends = $3 where id = $1', [req.params.orgId, plan, ends]);
+      await audit(c, req.params.orgId, by(req), 'billing.trial_started', plan, { ends });
       await syncPlan(c, req.params.orgId, today());
     });
     return { plan, ends };
@@ -147,9 +149,10 @@ export const billingRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   app.get<{ Querystring: { invoice?: string } }>('/billing/return', async (req, reply) => {
     const id = req.query.invoice ?? '';
     const row = /^[0-9a-f-]{36}$/.test(id)
-      ? (await deps.db.query<{ org_id: string }>('select org_id from billing_invoices where id = $1', [id])).rows[0]
+      ? (await deps.db.query<{ org_id: string | null }>('select org_id from billing_invoices where id = $1', [id])).rows[0]
       : undefined;
-    if (!row) return reply.redirect('/');
+    // unknown, or kept after its organisation was deleted
+    if (!row?.org_id) return reply.redirect('/');
     const status = await settleInvoice(ctx, id).catch(e => { console.error('billing return: could not check', id, e); return 'pending' as const; });
     return reply.redirect(`/billing/${row.org_id}?payment=${status === 'paid' ? 'paid' : status === 'pending' ? 'pending' : 'failed'}`);
   });

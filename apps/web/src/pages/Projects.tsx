@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../api.js';
 import { type MessageKey, useI18n } from '../i18n.js';
 import { useSession } from '../session.js';
+import { DeletionNotice } from './Members.js';
 import { ImportDialog } from '../project/ImportDialog.js';
 import { Icon, TopBar } from '../ui.js';
 
@@ -10,7 +11,7 @@ interface ProjectRow { id: string; name: string; updatedAt: string; itemCount: n
 
 export function ProjectsPage() {
   const { t, error, locale } = useI18n();
-  const { me } = useSession();
+  const { me, refresh } = useSession();
   const nav = useNavigate();
   const orgs = me?.organisations ?? [];
   const [orgId, setOrgId] = useState(() => orgs[0]?.id ?? '');
@@ -19,8 +20,11 @@ export function ProjectsPage() {
   const [err, setErr] = useState('');
   const [importOpen, setImportOpen] = useState(false);
 
+  // the chosen organisation can disappear (left, deleted): fall back to the first one
+  useEffect(() => { if (!orgs.some(o => o.id === orgId)) setOrgId(orgs[0]?.id ?? ''); }, [orgs, orgId]);
+
   const load = useCallback(async () => {
-    if (!orgId) return;
+    if (!orgId) { setProjects(null); return; }
     setProjects((await api.get<{ projects: ProjectRow[] }>(`/orgs/${orgId}/projects`)).projects);
   }, [orgId]);
   useEffect(() => { load().catch(e => setErr(error(e instanceof ApiError ? e.code : 'server_error'))); }, [load, error]);
@@ -38,6 +42,21 @@ export function ProjectsPage() {
     }
   }
 
+  /** A new organisation, for someone who belongs to none (or wants another); they become its owner. */
+  async function createOrg(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const name = String(new FormData(e.currentTarget).get('orgName') ?? '').trim();
+    if (!name) return;
+    setErr('');
+    try {
+      const r = await api.post<{ id: string }>('/orgs', { name });
+      await refresh();
+      setOrgId(r.id);
+    } catch (x) {
+      setErr(error(x instanceof ApiError ? x.code : 'server_error'));
+    }
+  }
+
   const updated = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 
   return (
@@ -45,7 +64,7 @@ export function ProjectsPage() {
       <TopBar>
         {orgs.length > 1 && (
           <select className="btn" value={orgId} onChange={e => setOrgId(e.target.value)} aria-label="Organisation">
-            {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            {orgs.map(o => <option key={o.id} value={o.id}>{o.name}{o.deleteOn ? ` · ${t('pendingDeletion')}` : ''}</option>)}
           </select>
         )}
       </TopBar>
@@ -60,11 +79,22 @@ export function ProjectsPage() {
             {org?.role === 'owner' && <Link className="btn" to={`/billing/${org.id}`}>{t('billing')}</Link>}
             {import.meta.env.MODE !== 'demo' && <Link className="btn" to="/settings">{Icon.gear} {t('accountSettings')}</Link>}
           </div>
-          <form className="newp" onSubmit={create}>
+          {!org && (
+            <div className="sec">
+              <h2>{t('noOrgs')}</h2>
+              <p className="hint">{t('noOrgsHint')}</p>
+              <form className="newp org" onSubmit={createOrg}>
+                <input name="orgName" placeholder={t('orgName')} aria-label={t('orgName')} maxLength={200} required />
+                <button className="btn primary" type="submit">{t('createOrg')}</button>
+              </form>
+            </div>
+          )}
+          {org?.deleteOn && <DeletionNotice orgId={org.id} deleteOn={org.deleteOn} onCancelled={() => { load().catch(() => {}); }} />}
+          {org && !org.deleteOn && <form className="newp" onSubmit={create}>
             <input name="name" placeholder={t('projectName')} aria-label={t('projectName')} maxLength={200} />
             <button className="btn primary" type="submit">{t('newProject')}</button>
             <button className="btn" type="button" onClick={() => setImportOpen(true)}>{t('newFromExcel')}</button>
-          </form>
+          </form>}
           {err && <div className="err" role="alert">{err}</div>}
           {projects && !projects.length && <p className="hint">{t('noProjects')}</p>}
           <div className="plist">

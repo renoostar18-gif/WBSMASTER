@@ -224,6 +224,7 @@ export function ProjectPage() {
         )}
       </TopBar>
       {data.project.readOnly === 'plan' && <div className="notice warn" role="note">{t('readOnlyPlan')}</div>}
+      {data.project.readOnly === 'deletion' && <div className="notice warn" role="note">{t('readOnlyDeletion', { date: date(data.project.deleteOn) })}</div>}
       <div className="rail wrap">
         <div className="grp"><span className="lbl">{t('view')}</span>
           <div className="seg">

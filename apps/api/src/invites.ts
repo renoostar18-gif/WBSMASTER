@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { type AuditBy, audit } from './audit.js';
 import { checkRoomForMember } from './billing.js';
 import type { Queryable } from './db.js';
 import { ApiError, conflict, forbidden } from './errors.js';
@@ -50,7 +51,7 @@ export async function inviteOrAdd(c: Queryable, mailer: Mailer | undefined, appU
 }
 
 /** A new link for an open invitation (the old one stops working), sent again. */
-export async function resendInvitation(c: Queryable, mailer: Mailer | undefined, appUrl: string, orgId: string, id: string, inviter: Inviter) {
+export async function resendInvitation(c: Queryable, mailer: Mailer | undefined, appUrl: string, orgId: string, id: string, inviter: Inviter): Promise<string> {
   const token = newToken();
   const r = await c.query<{ email: string; role: InviteRole; org: string }>(
     `update invitations i set token_hash = $3, invited_by = $4, expires_at = now() + make_interval(days => $5)
@@ -60,6 +61,7 @@ export async function resendInvitation(c: Queryable, mailer: Mailer | undefined,
   const inv = r.rows[0];
   if (!inv) throw new ApiError(404, 'invitation_not_found');
   await send(mailer, invitationEmail(inv.email, inv.org, inviter.name, inv.role, inviteLink(appUrl, token)));
+  return inv.email;
 }
 
 export interface OpenInvitation { id: string; org_id: string; email: string; role: InviteRole; expires_at: Date; accepted_at: Date | null; org_name: string; plan: Plan; inviter: string | null }
@@ -70,12 +72,12 @@ export async function invitationForToken(q: Queryable, token: string): Promise<O
   const r = await q.query<OpenInvitation>(
     `select i.id, i.org_id, i.email, i.role, i.expires_at, i.accepted_at, o.name as org_name, o.plan, u.name as inviter
        from invitations i join organisations o on o.id = i.org_id left join users u on u.id = i.invited_by
-      where i.token_hash = $1`, [hashToken(token)]);
+      where i.token_hash = $1 and o.delete_on is null`, [hashToken(token)]);
   return r.rows[0];
 }
 
 /** Join the organisation through an invitation: the person signed in must be the one invited. */
-export async function acceptInvitation(c: Queryable, token: string, user: { id: string; email: string }): Promise<string> {
+export async function acceptInvitation(c: Queryable, token: string, user: { id: string; email: string }, who: AuditBy): Promise<string> {
   const inv = await invitationForToken(c, token);
   if (!inv) throw new ApiError(404, 'invitation_not_found');
   if (inv.accepted_at) throw new ApiError(410, 'invitation_used');
@@ -90,6 +92,7 @@ export async function acceptInvitation(c: Queryable, token: string, user: { id: 
     await c.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3)', [inv.org_id, user.id, inv.role]);
   }
   await c.query('update invitations set accepted_at = now(), accepted_by = $2 where id = $1', [inv.id, user.id]);
+  await audit(c, inv.org_id, who, 'invitation.accepted', inv.email, { role: inv.role });
   return inv.org_id;
 }
 
