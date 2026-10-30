@@ -81,7 +81,7 @@ check(omarMe.organisations.some(o => o.id === admin.orgId && o.role === 'admin')
 
 // ---- the admin sees both as members; the used link no longer works ----
 await page.reload();
-const rows = page.locator('.sec', { hasText: 'Members' }).last().locator('tbody tr');
+const rows = page.locator('.sec', { has: page.getByRole('heading', { name: 'Members', exact: true }) }).locator('tbody tr');
 await rows.filter({ hasText: 'Layla' }).waitFor();
 check(await page.getByRole('heading', { name: 'Invitations waiting' }).count() === 0, 'both invitations are used: none waiting');
 const used = watch(await (await browser.newContext()).newPage());

@@ -23,9 +23,34 @@ interface DemoProject {
 interface DemoState {
   signedIn: boolean;
   user: { id: string; email: string; name: string; locale: 'en' | 'ar'; theme: 'auto' | 'light' | 'dark'; notifyEmail: 'instant' | 'daily' | 'off' };
-  org: { id: string; name: string; plan: 'team'; role: 'owner' };
+  org: { id: string; name: string; plan: 'free' | 'team' | 'business'; role: 'owner' };
   projects: DemoProject[];
   notifications?: Notification[];
+  people?: { id: string; email: string; name: string; role: 'owner' | 'admin' | 'member' | 'guest' }[];
+  invitations?: { id: string; email: string; role: 'admin' | 'member' | 'guest'; invitedBy: string; createdAt: string; expiresAt: string; expired: boolean }[];
+  billing?: DemoBilling;
+}
+interface DemoInvoice {
+  id: string; number: number; status: 'paid'; kind: 'new' | 'renew' | 'upgrade'; plan: 'team' | 'business'; interval: 'month' | 'year'; seats: number;
+  periodStart: string; periodEnd: string; total: number; createdAt: string; paidAt: string; payUrl: null;
+}
+interface DemoBilling {
+  trial: { plan: 'team' | 'business'; ends: string } | null;
+  current: { plan: 'team' | 'business'; interval: 'month' | 'year'; seats: number; periodStart: string; periodEnd: string } | null;
+  invoices: DemoInvoice[];
+  profile: { name: string; address: string; vatNumber: string; email: string };
+}
+
+/** Seat prices in halalas, as on the server (apps/api/src/billing.ts): SAR 45 / 90 a month, 20% off a year. */
+const SEAT = { team: { month: 4500, year: 43200 }, business: { month: 9000, year: 86400 } } as const;
+const VAT_RATE = 15;
+const addDays = (iso: string, n: number) => toIso(toDay(iso)! + n)!;
+function addInterval(iso: string, interval: 'month' | 'year') {
+  const [y, mo, d] = iso.split('-').map(Number) as [number, number, number];
+  const ty = interval === 'year' || mo === 12 ? y + 1 : y;
+  const tm = interval === 'year' ? mo : mo === 12 ? 1 : mo + 1;
+  const last = new Date(Date.UTC(ty, tm, 0)).getUTCDate();
+  return `${ty}-${String(tm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
 }
 
 const KEY = 'wbs.demo.v3';
@@ -199,6 +224,9 @@ export async function demoRequest<T>(method: string, url: string, body: unknown)
     return out({ ok: true });
   }
 
+  const r = demoOrgRoute(s, method, url, b);
+  if (r !== undefined) return out(r);
+
   let m = /^\/orgs\/[^/]+\/projects$/.exec(url);
   if (m && method === 'GET') {
     return out({
@@ -324,4 +352,93 @@ export async function demoRequest<T>(method: string, url: string, body: unknown)
     }
   }
   throw notFound();
+}
+
+/**
+ * Members, invitations and billing in the demo: kept in this browser, no email is sent and no payment
+ * is taken (paying marks the invoice paid at once). Returns undefined for other routes.
+ */
+function demoOrgRoute(s: DemoState, method: string, url: string, b: Record<string, unknown>): unknown {
+  const today = toIso(todayDay())!;
+  const people = (s.people ??= [
+    { id: s.user.id, email: s.user.email, name: s.user.name, role: 'owner' },
+    { ...COLLEAGUES[0]!, role: 'member' },
+    { ...COLLEAGUES[1]!, role: 'admin' },
+  ]);
+  people[0] = { ...people[0]!, name: s.user.name, email: s.user.email };
+  const invites = (s.invitations ??= []);
+  const billing = (s.billing ??= {
+    trial: { plan: 'team', ends: addDays(today, 10) }, current: null, invoices: [],
+    profile: { name: '', address: '', vatNumber: '', email: '' },
+  });
+  const seatsUsed = () => people.filter(p => p.role !== 'guest').length + invites.filter(i => i.role !== 'guest').length;
+  const route = `${method} ${url.replace(/^\/orgs\/[^/]+/, '/orgs/:org')}`;
+
+  if (route === 'GET /orgs/:org/members') return { members: people };
+  if (route === 'POST /orgs/:org/members') {
+    const email = String(b.email ?? '').trim().toLowerCase();
+    const role = (b.role ?? 'member') as 'admin' | 'member' | 'guest';
+    if (people.some(p => p.email.toLowerCase() === email)) throw new ApiError(409, 'already_member');
+    const seats = billing.current?.seats;
+    if (role !== 'guest' && seats != null && seats <= seatsUsed()) throw new ApiError(403, 'plan_seat_limit');
+    const old = invites.findIndex(i => i.email === email);
+    if (old >= 0) invites.splice(old, 1);
+    invites.unshift({ id: uuid(), email, role, invitedBy: s.user.name, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 14 * 864e5).toISOString(), expired: false });
+    return { invited: true };
+  }
+  let m = /^(PATCH|DELETE) \/orgs\/:org\/members\/([^/]+)$/.exec(route);
+  if (m) {
+    const i = people.findIndex(p => p.id === m![2]);
+    if (i < 0) throw new ApiError(404, 'member_not_found');
+    if (m[1] === 'DELETE') people.splice(i, 1);
+    else people[i] = { ...people[i]!, role: b.role as 'owner' };
+    if (!people.some(p => p.role === 'owner')) throw new ApiError(400, 'last_owner');
+    return { ok: true };
+  }
+  if (route === 'GET /orgs/:org/invitations') {
+    return { invitations: invites, seats: { used: seatsUsed(), limit: billing.current?.seats ?? null } };
+  }
+  m = /^(POST|DELETE) \/orgs\/:org\/invitations\/([^/]+)(\/resend)?$/.exec(route);
+  if (m) {
+    const i = invites.findIndex(x => x.id === m![2]);
+    if (i < 0) throw new ApiError(404, 'invitation_not_found');
+    if (m[1] === 'DELETE') invites.splice(i, 1);
+    else invites[i]!.expiresAt = new Date(Date.now() + 14 * 864e5).toISOString();
+    return { ok: true };
+  }
+
+  // billing: the plan in force comes from the paid period, then the trial
+  const cur = billing.current && today < billing.current.periodEnd ? billing.current : null;
+  const trial = !cur && billing.trial && today < billing.trial.ends ? billing.trial : null;
+  s.org.plan = cur?.plan ?? trial?.plan ?? 'free';
+  if (route === 'GET /orgs/:org/billing') {
+    return {
+      plan: s.org.plan, seats: cur?.seats ?? null, members: people.filter(p => p.role !== 'guest').length, current: cur,
+      paidUntil: cur?.periodEnd ?? null, inGrace: false, renewed: false, trial, trialAvailable: false, trialDays: 14,
+      payments: true, vatRate: VAT_RATE, comped: false, prices: SEAT, profile: billing.profile, invoices: billing.invoices,
+    };
+  }
+  if (route === 'PUT /orgs/:org/billing/profile') { billing.profile = b as DemoBilling['profile']; return { ok: true }; }
+  if (route === 'POST /orgs/:org/billing/quote' || route === 'POST /orgs/:org/billing/checkout') {
+    const plan = b.plan as 'team' | 'business', interval = b.interval as 'month' | 'year', seats = Number(b.seats);
+    if (seats < people.filter(p => p.role !== 'guest').length) throw new ApiError(400, 'billing_seats_below_members');
+    const kind = cur ? 'renew' as const : 'new' as const;
+    const periodStart = cur ? cur.periodEnd : today;
+    const periodEnd = addInterval(periodStart, interval);
+    const subtotal = SEAT[plan][interval] * seats, vat = Math.round(subtotal * VAT_RATE / 100);
+    const q = { kind, plan, interval, seats, seatPrice: SEAT[plan][interval], periodStart, periodEnd, subtotal, vatRate: VAT_RATE, vat, total: subtotal + vat };
+    if (route.endsWith('quote')) return q;
+    const now = new Date().toISOString();
+    billing.invoices.unshift({ id: uuid(), number: billing.invoices.length + 1, status: 'paid', kind, plan, interval, seats, periodStart, periodEnd, total: q.total, createdAt: now, paidAt: now, payUrl: null });
+    billing.current = { plan, interval, seats, periodStart: cur ? cur.periodStart : periodStart, periodEnd };
+    billing.trial = null;
+    s.org.plan = plan;
+    // no payment page in the demo: the page shows the result straight away
+    return { id: billing.invoices[0]!.id, url: null, demoPaid: true, quote: q };
+  }
+  if (route === 'POST /orgs/:org/billing/trial') {
+    billing.trial = { plan: b.plan as 'team', ends: addDays(today, 14) };
+    return billing.trial;
+  }
+  return undefined;
 }

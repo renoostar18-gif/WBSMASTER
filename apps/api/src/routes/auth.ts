@@ -8,6 +8,7 @@ import { ApiError } from '../errors.js';
 import { RateLimiter } from '../ratelimit.js';
 import { requireSsoFor } from './sso.js';
 import { acceptInvitation } from '../invites.js';
+import { audit } from '../audit.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(10, 'password_too_short').max(200);
@@ -58,9 +59,13 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
         [body.email, body.name, await hashPassword(body.password), body.locale ?? 'en'],
       );
       const userId = u.rows[0]!.id;
-      const orgId = body.invite
-        ? await acceptInvitation(c, body.invite, { id: userId, email: body.email })
-        : await createOrganisation(c, body.organisation ?? `${body.name}'s workspace`, userId, now());
+      const who = { actor: { id: userId, name: body.name }, ip: req.ip };
+      let orgId: string;
+      if (body.invite) orgId = await acceptInvitation(c, body.invite, { id: userId, email: body.email }, who);
+      else {
+        orgId = await createOrganisation(c, body.organisation ?? `${body.name}'s workspace`, userId, now());
+        await audit(c, orgId, who, 'org.created', body.organisation ?? `${body.name}'s workspace`);
+      }
       const token = await createSession(c, userId, deps.config.sessionDays);
       return { userId, orgId, token };
     });
@@ -95,10 +100,12 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
 
   app.get('/me', async req => {
     const user = requireUser(req);
+    // an API key only sees its own organisation; one waiting to be deleted is shown only to its owners
+    // (with the date, to cancel it), and never to keys
     const orgs = await deps.db.query(
-      `select o.id, o.name, o.plan, m.role from memberships m join organisations o on o.id = m.org_id
-        where m.user_id = $1 and ($2::uuid is null or o.id = $2) order by o.created_at`, [user.id, user.apiKey?.orgId ?? null]);
-    // an API key only sees its own organisation
+      `select o.id, o.name, o.plan, m.role, o.delete_on as "deleteOn" from memberships m join organisations o on o.id = m.org_id
+        where m.user_id = $1 and ($2::uuid is null or o.id = $2) and (o.delete_on is null or (m.role = 'owner' and $3))
+        order by o.created_at`, [user.id, user.apiKey?.orgId ?? null, !user.apiKey]);
     return { user, organisations: orgs.rows };
   });
 

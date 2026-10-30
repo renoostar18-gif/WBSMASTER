@@ -25,6 +25,8 @@ import { OpError } from './ops.js';
 import { authRoutes } from './routes/auth.js';
 import { calendarRoutes } from './routes/calendars.js';
 import { orgRoutes } from './routes/orgs.js';
+import { orgAdminRoutes } from './routes/orgadmin.js';
+import { lockedForDeletion } from './permissions.js';
 import { liveRoutes } from './routes/live.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { commentRoutes } from './routes/comments.js';
@@ -37,7 +39,13 @@ declare module 'fastify' {
   interface FastifyRequest {
     user: SessionUser | null;
   }
+  interface FastifyContextConfig {
+    /** The route still works while its organisation waits to be deleted (cancelling the deletion). */
+    duringDeletion?: boolean;
+  }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface AppDeps {
   db: Db;
@@ -106,6 +114,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }
   });
 
+  // an organisation waiting to be deleted is read-only for its owners (everyone else cannot see it at all)
+  app.addHook('preHandler', async req => {
+    if (req.method === 'GET' || req.method === 'HEAD' || !req.user || req.routeOptions.config?.duringDeletion) return;
+    const p = (req.params ?? {}) as { orgId?: string; projectId?: string };
+    const ids = { orgId: UUID.test(p.orgId ?? '') ? p.orgId : undefined, projectId: UUID.test(p.projectId ?? '') ? p.projectId : undefined };
+    if ((ids.orgId || ids.projectId) && await lockedForDeletion(deps.db, req.user.id, ids)) throw new ApiError(409, 'org_pending_deletion');
+  });
+
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ApiError) return reply.status(err.status).send({ error: err.code, details: err.details });
     if (err instanceof OpError) return reply.status(400).send({ error: err.code, opIndex: err.index, details: err.details });
@@ -131,6 +147,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(ssoRoutes(deps), { prefix: '/api' });
   app.register(billingRoutes(deps), { prefix: '/api' });
   app.register(invitationRoutes(deps), { prefix: '/api' });
+  app.register(orgAdminRoutes(deps), { prefix: '/api' });
   app.get('/api/openapi.json', async () => openApi);
   const docs = renderApiDocs();
   app.get('/api/docs', async (_req, reply) => reply.type('text/html; charset=utf-8').send(docs));

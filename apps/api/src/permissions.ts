@@ -12,6 +12,8 @@ export interface OrgAccess {
   orgId: string;
   plan: Plan;
   role: OrgRole;
+  /** Set while the organisation waits to be deleted: only its owners still reach it, read-only. */
+  deleteOn: string | null;
 }
 
 export interface ProjectAccess {
@@ -20,6 +22,8 @@ export interface ProjectAccess {
   plan: Plan;
   orgRole: OrgRole | null;
   role: ProjectRole;
+  /** Set while the organisation waits to be deleted (only owners get this far). */
+  deleteOn: string | null;
 }
 
 /** Who is asking: a signed-in person, or a person's API key (which only reaches its own organisation). */
@@ -35,18 +39,33 @@ function checkKey(who: Caller, orgId: string, plan: Plan, missing: string) {
   if (!PLANS[plan].api) throw forbidden('plan_api');
 }
 
+/**
+ * An organisation waiting to be deleted is hidden from everyone but its owners, and from API keys.
+ * (Owners can only read it: app.ts refuses changes, except cancelling the deletion.)
+ */
+const hiddenWhileDeleting = (deleteOn: string | null, role: OrgRole | null, who: Caller) => !!deleteOn && (role !== 'owner' || !!who.apiKey);
+
 /** The user's role in an organisation. 404 when they are not a member (existence is not revealed). */
 export async function orgAccess(db: Queryable, who: Caller, orgId: string, min: OrgRole = 'guest'): Promise<OrgAccess> {
   const userId = who.id;
-  const r = await db.query<{ role: OrgRole; plan: Plan }>(
-    'select m.role, o.plan from memberships m join organisations o on o.id = m.org_id where m.org_id = $1 and m.user_id = $2',
+  const r = await db.query<{ role: OrgRole; plan: Plan; delete_on: string | null }>(
+    'select m.role, o.plan, o.delete_on from memberships m join organisations o on o.id = m.org_id where m.org_id = $1 and m.user_id = $2',
     [orgId, userId],
   );
   const row = r.rows[0];
-  if (!row) throw notFound('org_not_found');
+  if (!row || hiddenWhileDeleting(row.delete_on, row.role, who)) throw notFound('org_not_found');
   checkKey(who, orgId, row.plan, 'org_not_found');
   if (ORG_RANK[row.role] < ORG_RANK[min]) throw forbidden();
-  return { orgId, plan: row.plan, role: row.role };
+  return { orgId, plan: row.plan, role: row.role, deleteOn: row.delete_on };
+}
+
+/** Whether a change to this organisation (or the organisation of this project) must wait: it is being deleted. */
+export async function lockedForDeletion(db: Queryable, userId: string, ids: { orgId?: string; projectId?: string }): Promise<boolean> {
+  const r = await db.query(
+    `select 1 from organisations o join memberships m on m.org_id = o.id and m.user_id = $3
+      where o.delete_on is not null and (o.id = $1::uuid or o.id = (select org_id from projects where id = $2::uuid))`,
+    [ids.orgId ?? null, ids.projectId ?? null, userId]);
+  return !!r.rowCount;
 }
 
 /**
@@ -56,8 +75,8 @@ export async function orgAccess(db: Queryable, who: Caller, orgId: string, min: 
  */
 export async function projectAccess(db: Queryable, who: Caller, projectId: string, min: ProjectRole = 'viewer'): Promise<ProjectAccess> {
   const userId = who.id;
-  const r = await db.query<{ org_id: string; plan: Plan; org_role: OrgRole | null; project_role: ProjectRole | null }>(
-    `select p.org_id, o.plan, m.role as org_role, pm.role as project_role
+  const r = await db.query<{ org_id: string; plan: Plan; delete_on: string | null; org_role: OrgRole | null; project_role: ProjectRole | null }>(
+    `select p.org_id, o.plan, o.delete_on, m.role as org_role, pm.role as project_role
        from projects p
        join organisations o on o.id = p.org_id
        left join memberships m on m.org_id = p.org_id and m.user_id = $2
@@ -66,12 +85,12 @@ export async function projectAccess(db: Queryable, who: Caller, projectId: strin
     [projectId, userId],
   );
   const row = r.rows[0];
-  if (!row || !row.org_role) throw notFound('project_not_found');
+  if (!row || !row.org_role || hiddenWhileDeleting(row.delete_on, row.org_role, who)) throw notFound('project_not_found');
   checkKey(who, row.org_id, row.plan, 'project_not_found');
   const role: ProjectRole | null = row.org_role === 'owner' || row.org_role === 'admin' ? 'admin' : row.project_role;
   if (!role) throw notFound('project_not_found');
   if (PROJECT_RANK[role] < PROJECT_RANK[min]) throw forbidden();
-  return { projectId, orgId: row.org_id, plan: row.plan, orgRole: row.org_role, role };
+  return { projectId, orgId: row.org_id, plan: row.plan, orgRole: row.org_role, role, deleteOn: row.delete_on };
 }
 
 /**
