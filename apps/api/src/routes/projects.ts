@@ -10,6 +10,7 @@ import { badRequest, forbidden, notFound } from '../errors.js';
 import { type Op, applyOps, opsBody } from '../ops.js';
 import { type ProjectAccess, type ProjectRole, checkWritable, orgAccess, overPlanLimit, projectAccess } from '../permissions.js';
 import { PLANS } from '../plans.js';
+import { audit, by, toCsv } from '../audit.js';
 import { itemNotifications, notifyNow, projectPeople } from '../notify.js';
 import { saveItems } from '../save.js';
 import { emitEvent } from './integrations.js';
@@ -54,7 +55,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
   }
 
   /** Full project for the web app: stored data, calendar and the engine's calculations. */
-  async function projectPayload(projectId: string, role: ProjectRole, acc: Pick<ProjectAccess, 'orgId' | 'plan'>) {
+  async function projectPayload(projectId: string, role: ProjectRole, acc: Pick<ProjectAccess, 'orgId' | 'plan' | 'deleteOn'>) {
     const loaded = await loadProject(deps.db, projectId);
     const computed = computeProject(loaded.project, { calendar: new WorkCalendar(loaded.calendar), today: today() });
     const summary = await deps.db.query(
@@ -64,7 +65,8 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
         id: loaded.row.id, orgId: loaded.row.org_id, name: loaded.row.name, version: loaded.row.version,
         calendarId: loaded.row.calendar_id, locale: loaded.row.locale, archived: !!loaded.row.archived_at,
         settings: loaded.project.settings,
-        readOnly: loaded.row.archived_at ? 'archived' : await overPlanLimit(deps.db, acc.orgId, projectId, acc.plan) ? 'plan' : null,
+        readOnly: acc.deleteOn ? 'deletion' : loaded.row.archived_at ? 'archived' : await overPlanLimit(deps.db, acc.orgId, projectId, acc.plan) ? 'plan' : null,
+        deleteOn: acc.deleteOn,
       },
       role,
       items: loaded.project.items,
@@ -107,6 +109,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
       await c.query("insert into project_members (project_id, user_id, role) values ($1, $2, 'admin')", [pid, user.id]);
       await c.query("insert into activity_log (project_id, actor_id, action, new_value) values ($1, $2, 'project.create', $3)",
         [pid, user.id, JSON.stringify(body.name)]);
+      await audit(c, req.params.orgId, by(req), 'project.created', body.name, { projectId: pid });
       return pid;
     });
     await emitEvent(deps, req.params.orgId, 'project.created', { project: { id, name: body.name }, actor: { id: user.id, name: user.name } });
@@ -162,6 +165,10 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
         [req.params.projectId, ...cols.map(([, v]) => v), user.id]);
       await c.query("insert into activity_log (project_id, actor_id, action, new_value) values ($1, $2, 'project.settings', $3)",
         [req.params.projectId, user.id, JSON.stringify(body)]);
+      if (body.archived !== undefined) {
+        const name = (await c.query<{ name: string }>('select name from projects where id = $1', [req.params.projectId])).rows[0]!.name;
+        await audit(c, acc.orgId, by(req), body.archived ? 'project.archived' : 'project.restored', name, { projectId: req.params.projectId });
+      }
       // a new calendar or switching auto-schedule on can move linked work
       if (body.calendarId !== undefined || body.autoSchedule === true) {
         const loaded = await loadProject(c, req.params.projectId, true);
@@ -177,8 +184,11 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.delete<P>('/projects/:projectId', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user, req.params.projectId, 'admin');
-    await deps.db.query('delete from projects where id = $1', [req.params.projectId]);
+    const acc = await projectAccess(deps.db, user, req.params.projectId, 'admin');
+    await tx(deps.db, async c => {
+      const r = await c.query<{ name: string }>('delete from projects where id = $1 returning name', [req.params.projectId]);
+      if (r.rows[0]) await audit(c, acc.orgId, by(req), 'project.deleted', r.rows[0].name, { projectId: req.params.projectId });
+    });
     return { ok: true };
   });
 
@@ -382,7 +392,7 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
 
   app.get<P & { Querystring: { before?: string; itemId?: string } }>('/projects/:projectId/activity', async req => {
     const user = requireUser(req);
-    await projectAccess(deps.db, user, req.params.projectId);
+    const acc = await projectAccess(deps.db, user, req.params.projectId);
     const r = await deps.db.query(
       `select a.id, a.item_id as "itemId", a.action, a.field, a.old_value as "oldValue", a.new_value as "newValue", a.at,
               u.id as "actorId", u.name as "actorName"
@@ -390,6 +400,23 @@ export const projectRoutes = (deps: AppDeps): FastifyPluginAsync => async app =>
         where a.project_id = $1 and ($2::bigint is null or a.id < $2) and ($3::uuid is null or a.item_id = $3)
         order by a.id desc limit 100`,
       [req.params.projectId, req.query.before ?? null, req.query.itemId ?? null]);
-    return { activity: r.rows };
+    const plan = PLANS[acc.plan];
+    // how long history is kept on this plan (spec 3.4), and whether it can be exported
+    return { activity: r.rows, retentionDays: Number.isFinite(plan.historyDays) ? plan.historyDays : null, canExport: plan.historyExport };
+  });
+
+  /** The project's whole activity history as CSV (Business plan). */
+  app.get<P>('/projects/:projectId/activity.csv', async (req, reply) => {
+    const user = requireUser(req);
+    const acc = await projectAccess(deps.db, user, req.params.projectId);
+    if (!PLANS[acc.plan].historyExport) throw forbidden('plan_history_export');
+    const r = await deps.db.query<{ at: Date; actor: string | null; action: string; item_id: string | null; item: string | null; field: string | null; old_value: unknown; new_value: unknown }>(
+      `select a.at, u.name as actor, a.action, a.item_id, i.name as item, a.field, a.old_value, a.new_value
+         from activity_log a left join users u on u.id = a.actor_id left join wbs_items i on i.id = a.item_id
+        where a.project_id = $1 order by a.id desc`, [req.params.projectId]);
+    const csv = toCsv(['time', 'actor', 'action', 'item id', 'item', 'field', 'old value', 'new value'],
+      r.rows.map(x => [x.at, x.actor ?? '', x.action, x.item_id ?? '', x.item ?? '', x.field ?? '', x.old_value, x.new_value]));
+    return reply.type('text/csv; charset=utf-8').header('content-disposition', 'attachment; filename="activity.csv"')
+      .header('cache-control', 'private, no-store').send(csv);
   });
 };

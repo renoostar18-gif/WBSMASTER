@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { BrowserRouter, MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { DEMO } from './api.js';
 import { I18nProvider } from './i18n.js';
+import { AuditPage } from './pages/Audit.js';
 import { AuthPage } from './pages/Auth.js';
 import { BillingPage } from './pages/Billing.js';
 import { InvitePage } from './pages/Invite.js';
@@ -57,6 +58,7 @@ export function App() {
               <Route path="/settings" element={<Private><SettingsPage /></Private>} />
               <Route path="/billing/:orgId" element={<Private><BillingPage /></Private>} />
               <Route path="/members/:orgId" element={<Private><MembersPage /></Private>} />
+              <Route path="/audit/:orgId" element={<Private><AuditPage /></Private>} />
               <Route path="/invite/:token" element={<InvitePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

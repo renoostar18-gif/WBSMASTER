@@ -7,6 +7,7 @@ import { checkRoomForMember } from '../billing.js';
 import { tx } from '../db.js';
 import { ApiError, badRequest, forbidden, notFound } from '../errors.js';
 import { orgAccess } from '../permissions.js';
+import { audit, by } from '../audit.js';
 import { PLANS } from '../plans.js';
 import { Sealer } from '../secrets.js';
 import {
@@ -79,12 +80,16 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
          client_secret_enc = excluded.client_secret_enc, enforce = excluded.enforce, auto_join = excluded.auto_join,
          updated_by = excluded.updated_by, updated_at = now()`,
       [req.params.orgId, b.provider, issuer, b.clientId, secret, b.enforce, b.autoJoin, user.id]);
+    // never the secret itself; only whether it changed
+    await audit(deps.db, req.params.orgId, by(req), 'sso.updated', b.provider,
+      { issuer, clientId: b.clientId, enforce: b.enforce, autoJoin: b.autoJoin, newSecret: !!b.clientSecret, created: !old });
     return { ok: true };
   });
 
   app.delete<O>('/orgs/:orgId/sso', async req => {
     await admin(req, req.params.orgId);
-    await deps.db.query('delete from sso_connections where org_id = $1', [req.params.orgId]);
+    const r = await deps.db.query('delete from sso_connections where org_id = $1', [req.params.orgId]);
+    if (r.rowCount) await audit(deps.db, req.params.orgId, by(req), 'sso.removed');
     return { ok: true };
   });
 
@@ -93,7 +98,8 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     const { domain } = parse(z.object({ domain: z.string().trim().toLowerCase().regex(domainRe) }), req.body);
     if (isPublicDomain(domain)) throw badRequest('sso_public_domain');
     const token = newVerificationToken();
-    await deps.db.query('insert into sso_domains (org_id, domain, token) values ($1, $2, $3) on conflict do nothing', [req.params.orgId, domain, token]);
+    const added = await deps.db.query('insert into sso_domains (org_id, domain, token) values ($1, $2, $3) on conflict do nothing', [req.params.orgId, domain, token]);
+    if (added.rowCount) await audit(deps.db, req.params.orgId, by(req), 'sso.domain_added', domain);
     return reply.status(201).send({ domain, record: verificationRecord(token) });
   });
 
@@ -112,13 +118,15 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
       if ((e as { code?: string }).code === '23505') throw new ApiError(409, 'sso_domain_taken');
       throw e;
     }
+    await audit(deps.db, req.params.orgId, by(req), 'sso.domain_verified', req.params.domain);
     return { verified: true };
   });
 
   app.delete<O & { Params: { domain: string } }>('/orgs/:orgId/sso/domains/:domain', async req => {
     await admin(req, req.params.orgId);
     await tx(deps.db, async c => {
-      await c.query('delete from sso_domains where org_id = $1 and domain = $2', [req.params.orgId, req.params.domain]);
+      const r = await c.query('delete from sso_domains where org_id = $1 and domain = $2', [req.params.orgId, req.params.domain]);
+      if (r.rowCount) await audit(c, req.params.orgId, by(req), 'sso.domain_removed', req.params.domain);
       // without a proved domain nobody could sign in, so stop requiring SSO
       const v = await c.query('select 1 from sso_domains where org_id = $1 and verified_at is not null', [req.params.orgId]);
       if (!v.rowCount) await c.query('update sso_connections set enforce = false where org_id = $1', [req.params.orgId]);
@@ -147,10 +155,15 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
       const userId = await tx(deps.db, async c => {
         let u = (await c.query<{ id: string }>('select id from users where lower(email) = $1', [who.email])).rows[0];
         const member = u ? (await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [who.orgId, u.id])).rowCount : 0;
-        if (!member && !who.autoJoin) throw new ApiError(403, 'sso_not_member');
+        // nobody joins an organisation that is waiting to be deleted
+        const deleting = (await c.query('select 1 from organisations where id = $1 and delete_on is not null', [who.orgId])).rowCount;
+        if (!member && (!who.autoJoin || deleting)) throw new ApiError(403, 'sso_not_member');
         if (!u) u = (await c.query<{ id: string }>('insert into users (email, name) values ($1, $2) returning id', [who.email, who.name])).rows[0]!;
-        if (!member) await checkRoomForMember(c, who.orgId);
-        if (!member) await c.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'member') on conflict do nothing", [who.orgId, u.id]);
+        if (!member) {
+          await checkRoomForMember(c, who.orgId);
+          await c.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'member') on conflict do nothing", [who.orgId, u.id]);
+          await audit(c, who.orgId, { actor: { id: u.id, name: who.name }, ip: req.ip }, 'member.added', who.email, { role: 'member', via: 'sso' });
+        }
         return u.id;
       });
       setSessionCookie(reply, await createSession(deps.db, userId, deps.config.sessionDays), deps);
