@@ -4,6 +4,8 @@ import { ApiError, api } from '../api.js';
 import { useI18n } from '../i18n.js';
 import { safeNext } from '../next.js';
 import { useSession } from '../session.js';
+import { SiteFooter, fill } from '../site/chrome.js';
+import { SITE_COPY } from '../site/copy.js';
 import { TopBar } from '../ui.js';
 
 export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
@@ -59,7 +61,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
   }
 
   return (
-    <div className="shell">
+    <div className="site">
       <TopBar />
       <div className="auth">
         <h1>{mode === 'signin' ? t('signIn') : t('signUp')}</h1>
@@ -85,6 +87,11 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
           {mode === 'signup' && <label className="fld"><span>{t('organisation')}</span><input name="organisation" autoComplete="organization" /></label>}
           {err && <div className="err" role="alert">{err}</div>}
           <button className="btn primary" disabled={busy} type="submit">{mode === 'signin' ? t('signIn') : t('signUp')}</button>
+          {mode === 'signup' && (
+            <p className="hint agree">
+              {fill(SITE_COPY[locale].agree, { terms: <Link to="/terms">{SITE_COPY[locale].footer.terms}</Link>, privacy: <Link to="/privacy">{SITE_COPY[locale].footer.privacy}</Link> })}
+            </p>
+          )}
           {mode === 'signin' && import.meta.env.MODE !== 'demo' && (
             <button className="btn" type="button" onClick={() => { setSso(true); setErr(''); }}>{t('signInSso')}</button>
           )}
@@ -94,6 +101,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
           {mode === 'signin' ? <>{t('noAccount')} <Link to="/signup">{t('signUp')}</Link></> : <>{t('haveAccount')} <Link to="/signin">{t('signIn')}</Link></>}
         </p>
       </div>
+      <SiteFooter />
     </div>
   );
 }

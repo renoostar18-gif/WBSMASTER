@@ -46,6 +46,8 @@ it also needs `DATABASE_URL`, to put the test organisation on the Team plan) and
 `node apps/web/e2e/integrations.mjs` (API keys and a webhook from Settings; also needs `DATABASE_URL`) and
 `node apps/web/e2e/sso.mjs` (single sign-on with a fake identity provider; the API needs `SSO_ALLOW_HTTP=1`
 and `APP_URL` set to the web address) and `node apps/web/e2e/invites.mjs` (inviting from the Members page and joining from the link; needs `DATABASE_URL`) and
+`node apps/web/e2e/site.mjs` (the public landing page with pricing, the draft Terms and Privacy pages, Arabic,
+dark theme and phone width; pass a folder to save screenshots) and
 `node apps/web/e2e/share.mjs` (a public read-only link: created, opened signed out in English and Arabic, revoked; needs `DATABASE_URL`) and
 `node apps/web/e2e/org-admin.mjs` (transferring ownership, the audit log, scheduling and cancelling a deletion, a
 deletion run by the daily job, then starting again with no organisation; needs `DATABASE_URL` and `pnpm build`) and
@@ -53,6 +55,15 @@ deletion run by the daily job, then starting again with no organisation; needs `
 start `node apps/web/e2e/fake-moyasar.mjs` first and the API with `MOYASAR_SECRET_KEY=sk_test_e2e
 MOYASAR_WEBHOOK_SECRET=whsec_e2e MOYASAR_API_URL=http://127.0.0.1:4010/v1`). Set `CHROMIUM_PATH`
 to use an installed Chromium, and `WEB_URL` to test another address.
+
+## Public site
+
+Visitors who are not signed in see the landing page at `/` (signed in, `/` is still the projects page), with
+pricing at `/pricing` and the **draft** Terms of Service and Privacy Policy at `/terms` and `/privacy`, in English
+and Arabic (`apps/web/src/site/`). Prices are in `site/pricing.ts`; `test/site.test.ts` checks them against
+`apps/api/src/plans.ts`. The legal texts (`site/legal.en.tsx`, `site/legal.ar.tsx`) must be reviewed by a lawyer
+before publication, and their highlighted `[placeholders]` (company address, CR and VAT numbers, contact emails,
+domain, refund policy, liability, notice periods, retention periods) filled in.
 
 ## Portfolio and comments
 

@@ -45,8 +45,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 const NEXT_THEME: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' };
 
-/** Top bar shared by every signed-in page. */
-export function TopBar({ children }: { children?: ReactNode }) {
+/** Top bar shared by every page; `end` goes after the theme and language buttons (the public site's sign-in links). */
+export function TopBar({ children, end }: { children?: ReactNode; end?: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { me, signOut, theme, setTheme } = useSession();
   return (
@@ -64,6 +64,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
       <button className="btn" onClick={() => setTheme(NEXT_THEME[theme])} title={t('theme')}>{t(`theme_${theme}` as MessageKey)}</button>
       <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')} lang={locale === 'en' ? 'ar' : 'en'}>{t('language')}</button>
       {me && <button className="btn" onClick={signOut} title={me.user.email}>{t('signOut')}</button>}
+      {end}
     </header>
   );
 }

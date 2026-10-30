@@ -14,6 +14,8 @@ import { safeNext } from './next.js';
 import { SharePage } from './pages/Share.js';
 import { ProjectPage } from './project/ProjectPage.js';
 import { SessionProvider, useSession } from './session.js';
+import { LandingPage } from './site/Landing.js';
+import { LegalPage } from './site/Legal.js';
 import { ToastProvider } from './ui.js';
 
 function Private({ children }: { children: ReactNode }) {
@@ -30,6 +32,13 @@ function PublicOnly({ children }: { children: ReactNode }) {
   return me ? <Navigate to={safeNext(next)} replace /> : <>{children}</>;
 }
 
+/** Home: your projects when signed in, the public landing page otherwise. */
+function Home() {
+  const { me, loading } = useSession();
+  if (loading) return null;
+  return me ? <ProjectsPage /> : <LandingPage />;
+}
+
 // the demo runs inside a framed page whose address it cannot change, so it keeps routes in memory
 const Router = DEMO ? MemoryRouter : BrowserRouter;
 
@@ -42,7 +51,10 @@ export function App() {
             <Routes>
               <Route path="/signin" element={<PublicOnly><AuthPage mode="signin" /></PublicOnly>} />
               <Route path="/signup" element={<PublicOnly><AuthPage mode="signup" /></PublicOnly>} />
-              <Route path="/" element={<Private><ProjectsPage /></Private>} />
+              <Route path="/" element={<Home />} />
+              <Route path="/pricing" element={<LandingPage section="pricing" />} />
+              <Route path="/terms" element={<LegalPage doc="terms" />} />
+              <Route path="/privacy" element={<LegalPage doc="privacy" />} />
               <Route path="/p/:projectId" element={<Private><ProjectPage /></Private>} />
               <Route path="/portfolio/:orgId" element={<Private><PortfolioPage /></Private>} />
               <Route path="/settings" element={<Private><SettingsPage /></Private>} />
