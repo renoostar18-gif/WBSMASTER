@@ -18,6 +18,7 @@ import { integrationRoutes } from './routes/integrations.js';
 import { ssoRoutes } from './routes/sso.js';
 import { billingRoutes } from './routes/billing.js';
 import { invitationRoutes } from './routes/invitations.js';
+import { linkRoutes } from './routes/links.js';
 import type { PaymentGateway } from './moyasar.js';
 import { WebhookDispatcher } from './webhooks.js';
 import { OpError } from './ops.js';
@@ -73,12 +74,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.decorateRequest('user', null);
   const keyLimit = new RateLimiter(deps.config.apiRateLimit);
   const authLimit = new RateLimiter(deps.config.authRateLimit);
+  const shareLimit = new RateLimiter(deps.config.shareRateLimit);
 
   app.addHook('preHandler', async (req, reply) => {
     const path = req.url.split('?')[0]!;
     // sign-in and sign-up: limit guessing from one address
     if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup' || path === '/api/auth/sso/start')) {
       const r = authLimit.hit(`ip:${req.ip}`);
+      if (!r.ok) { reply.header('retry-after', r.retryAfter); throw new ApiError(429, 'rate_limited'); }
+    }
+    // public read-only links: limit guessing and scraping from one address
+    if (path.startsWith('/api/share/')) {
+      const r = shareLimit.hit(`ip:${req.ip}`);
       if (!r.ok) { reply.header('retry-after', r.retryAfter); throw new ApiError(429, 'rate_limited'); }
     }
     const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '')?.[1];
@@ -133,6 +140,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(ssoRoutes(deps), { prefix: '/api' });
   app.register(billingRoutes(deps), { prefix: '/api' });
   app.register(invitationRoutes(deps), { prefix: '/api' });
+  app.register(linkRoutes(deps), { prefix: '/api' });
   app.register(orgAdminRoutes(deps), { prefix: '/api' });
   app.get('/api/openapi.json', async () => openApi);
   const docs = renderApiDocs();
@@ -144,7 +152,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   if (dist && existsSync(dist)) {
     app.register(fastifyStatic, { root: dist, wildcard: false });
     app.setNotFoundHandler((req, reply) => {
-      if (req.method === 'GET' && !req.url.startsWith('/api/')) return reply.sendFile('index.html');
+      if (req.method === 'GET' && !req.url.startsWith('/api/')) {
+        // shared plans stay out of search engines, and the token out of other sites' logs
+        if (req.url.startsWith('/share/')) reply.header('x-robots-tag', 'noindex, nofollow').header('referrer-policy', 'no-referrer');
+        return reply.sendFile('index.html');
+      }
       return reply.status(404).send({ error: 'not_found' });
     });
   } else {

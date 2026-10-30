@@ -17,6 +17,8 @@ export interface Config {
   /** Requests per minute for each API key, and sign-in or sign-up attempts per minute from one address. */
   apiRateLimit: number;
   authRateLimit: number;
+  /** Requests per minute from one address to public read-only links. */
+  shareRateLimit: number;
   /** Behind a load balancer (Cloud Run): take the client address from X-Forwarded-For. */
   trustProxy: boolean;
   /** Allow webhooks to private and local addresses (development and tests only). */
@@ -55,6 +57,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mailFrom: env.MAIL_FROM ?? 'WBS Master <no-reply@wbs-master.example>',
     apiRateLimit: Number(env.API_RATE_LIMIT ?? 300),
     authRateLimit: Number(env.AUTH_RATE_LIMIT ?? 20),
+    shareRateLimit: Number(env.SHARE_RATE_LIMIT ?? 60),
     trustProxy: env.TRUST_PROXY === '1',
     webhookAllowPrivate: env.WEBHOOK_ALLOW_PRIVATE ? env.WEBHOOK_ALLOW_PRIVATE === '1' : env.NODE_ENV !== 'production',
     secretKey: secretKey(env),

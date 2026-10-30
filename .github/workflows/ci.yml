@@ -60,7 +60,8 @@ jobs:
       - name: Start the app (API serving the built web app)
         working-directory: apps/api
         run: |
-          PORT=3000 WEB_DIST=../web/dist APP_URL=http://localhost:3000 SSO_ALLOW_HTTP=1 \
+          # the browser suites sign up many people from one address in a few minutes: lift the sign-in limit for them
+          AUTH_RATE_LIMIT=1000 PORT=3000 WEB_DIST=../web/dist APP_URL=http://localhost:3000 SSO_ALLOW_HTTP=1 \
             MOYASAR_SECRET_KEY=sk_test_e2e MOYASAR_WEBHOOK_SECRET=whsec_e2e MOYASAR_API_URL=http://127.0.0.1:4010/v1 \
             node dist/server.js > /tmp/api.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:3000/api/health && exit 0; sleep 1; done
@@ -92,6 +93,9 @@ jobs:
       - name: Invitations test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Invitations" env WEB_URL=http://localhost:3000 node e2e/invites.mjs
+      - name: Public links test
+        working-directory: apps/web
+        run: ../../scripts/ci-e2e.sh "Public links" env WEB_URL=http://localhost:3000 node e2e/share.mjs
       - name: Organisation admin test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Organisation admin" env WEB_URL=http://localhost:3000 node e2e/org-admin.mjs
