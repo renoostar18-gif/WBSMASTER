@@ -70,13 +70,14 @@ afterAll(async () => { await idp.close(); await t.close(); });
 
 /** Go through the provider like a browser would, and come back to the app. */
 async function signInWithSso(email: string) {
-  const start = await new Client(t.app).post('/api/auth/sso/start', { email });
+  const browser = new Client(t.app);
+  const start = await browser.post('/api/auth/sso/start', { email });
   if (start.status !== 200) return { start };
   const atProvider = await fetch(start.body.url, { redirect: 'manual' });
   const back = new URL(atProvider.headers.get('location')!);
-  const res = await t.app.inject({ method: 'GET', url: back.pathname + back.search });
+  const res = await t.app.inject({ method: 'GET', url: back.pathname + back.search, headers: { cookie: browser.cookie } });
   const cookie = String(res.headers['set-cookie'] ?? '').split(';')[0]!;
-  return { start, status: res.statusCode, location: String(res.headers.location), cookie, url: start.body.url as string, callback: back };
+  return { start, status: res.statusCode, location: String(res.headers.location), cookie, url: start.body.url as string, callback: back, browserCookie: browser.cookie };
 }
 
 describe('single sign-on', () => {
@@ -153,8 +154,24 @@ describe('single sign-on', () => {
     idp.as({ email: 'sara@acme.sa', email_verified: true });
     const ok = await signInWithSso('sara@acme.sa');
     expect(ok.location).toBe('/');
-    const replay = await t.app.inject({ method: 'GET', url: ok.callback!.pathname + ok.callback!.search });
+    const replay = await t.app.inject({ method: 'GET', url: ok.callback!.pathname + ok.callback!.search, headers: { cookie: ok.browserCookie! } });
     expect(replay.headers.location).toBe('/signin?sso_error=sso_expired');
+  });
+
+  it('finishes a sign-in only in the browser that started it', async () => {
+    idp.as({ email: 'sara@acme.sa', email_verified: true });
+    const browser = new Client(t.app);
+    const start = await browser.post('/api/auth/sso/start', { email: 'sara@acme.sa' });
+    expect(browser.cookie).toMatch(/^wbs_sso=/);
+    const back = new URL((await fetch(start.body.url, { redirect: 'manual' })).headers.get('location')!);
+    // someone else's browser, sent the link (login CSRF): refused, with no session
+    for (const cookie of [undefined, 'wbs_sso=someone-elses-state']) {
+      const other = await t.app.inject({ method: 'GET', url: back.pathname + back.search, headers: cookie ? { cookie } : {} });
+      expect(other.headers.location).toBe('/signin?sso_error=sso_expired');
+      expect(String(other.headers['set-cookie'] ?? '')).not.toMatch(/wbs_session=[^;]/);
+    }
+    const mine = await t.app.inject({ method: 'GET', url: back.pathname + back.search, headers: { cookie: browser.cookie } });
+    expect(mine.headers.location).toBe('/');
   });
 
   it('can refuse people who are not members yet', async () => {

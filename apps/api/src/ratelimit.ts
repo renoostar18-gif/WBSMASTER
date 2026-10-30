@@ -19,6 +19,13 @@ export class RateLimiter {
     return { ok: true, remaining: this.limit - w.count };
   }
 
+  /** Whether the key has used up its window, without counting a request. */
+  over(key: string, now = Date.now()): number | null {
+    const w = this.windows.get(key);
+    if (!w || now - w.start >= this.windowMs || w.count < this.limit) return null;
+    return Math.ceil((w.start + this.windowMs - now) / 1000);
+  }
+
   private sweep(now: number) {
     for (const [k, w] of this.windows) if (now - w.start >= this.windowMs) this.windows.delete(k);
   }

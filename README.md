@@ -99,12 +99,15 @@ description at `/api/openapi.json`.
 - **API keys** (Settings → API & webhooks): `Authorization: Bearer wbsm_…`. A key acts with its
   owner's permissions in one organisation, read-only or read-and-change, and cannot sign in, change the
   account or make other keys. Only a hash is stored. 300 requests a minute per key (`API_RATE_LIMIT`);
-  sign-in and sign-up are limited to 20 a minute per address (`AUTH_RATE_LIMIT`; set `TRUST_PROXY=1`
-  behind a load balancer so the client's address is used).
+  sign-in and sign-up are limited to 20 a minute per address (`AUTH_RATE_LIMIT`; set `TRUST_PROXY`
+  behind a load balancer so the client's address is used: `1` trusts every hop, a number of 2 or more
+  trusts that many hops from the right of X-Forwarded-For). After 10 wrong passwords for one account
+  in 15 minutes its sign-in pauses, whatever the address (`LOGIN_FAILURE_LIMIT`). See
+  [docs/SECURITY.md](docs/SECURITY.md) for headers, CSRF checks and known limitations.
 - **Webhooks** (organisation admins): `item.changed`, `health.changed`, `baseline.saved`,
   `project.created`, signed with HMAC-SHA256 (`X-WBS-Signature: t=…,v1=…`), retried after 1, 5, 30, 120
   and 720 minutes. Only public https addresses are allowed in production, checked again before every
-  delivery; `WEBHOOK_ALLOW_PRIVATE=1` allows local addresses (the default outside production). The API
+  delivery and when connecting; `WEBHOOK_ALLOW_PRIVATE=1` allows local addresses (for webhooks and SSO providers) (the default outside production). The API
   process delivers them; with several instances each claims different deliveries.
 
 ## Single sign-on

@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import * as oidc from 'openid-client';
 import type { Queryable } from './db.js';
 import { ApiError } from './errors.js';
+import { publicFetch } from './netguard.js';
 import type { Sealer } from './secrets.js';
 
 export type SsoProvider = 'entra' | 'google' | 'oidc';
@@ -55,17 +56,22 @@ export async function connectionForEmail(db: Queryable, email: string): Promise<
 
 /**
  * Reads providers' settings (discovery) once an hour per connection rather than on every sign-in.
+ * Outside development, requests to the provider may only reach public addresses (an admin types the
+ * issuer address, and the provider's settings name further addresses).
  */
 export class SsoClients {
   private cache = new Map<string, { at: number; config: Promise<oidc.Configuration> }>();
-  constructor(private readonly sealer: Sealer, private readonly allowHttp: boolean) {}
+  constructor(private readonly sealer: Sealer, private readonly allowHttp: boolean, private readonly allowPrivate = allowHttp) {}
 
   config(c: Pick<Connection, 'issuer' | 'client_id' | 'client_secret_enc'>): Promise<oidc.Configuration> {
     const key = `${c.issuer}|${c.client_id}|${c.client_secret_enc}`;
     const hit = this.cache.get(key);
     if (hit && Date.now() - hit.at < 3600_000) return hit.config;
     const config = oidc.discovery(new URL(c.issuer), c.client_id, this.sealer.open(c.client_secret_enc), undefined,
-      this.allowHttp ? { execute: [oidc.allowInsecureRequests] } : undefined);
+      {
+        ...(this.allowHttp ? { execute: [oidc.allowInsecureRequests] } : {}),
+        ...(this.allowPrivate ? {} : { [oidc.customFetch]: publicFetch as oidc.CustomFetch }),
+      });
     config.catch(() => this.cache.delete(key));
     this.cache.set(key, { at: Date.now(), config });
     return config;
@@ -82,7 +88,7 @@ export class SsoClients {
 }
 
 /** Start a sign-in: remember what to check when the person comes back, and where to send them. */
-export async function startSignIn(db: Queryable, clients: SsoClients, c: Connection & { domain: string }, email: string, redirectUri: string): Promise<string> {
+export async function startSignIn(db: Queryable, clients: SsoClients, c: Connection & { domain: string }, email: string, redirectUri: string): Promise<{ url: string; state: string }> {
   const config = await clients.config(c).catch(() => { throw new ApiError(502, 'sso_provider_unreachable'); });
   const state = oidc.randomState(), nonce = oidc.randomNonce(), verifier = oidc.randomPKCECodeVerifier();
   await db.query("delete from sso_logins where created_at < now() - interval '10 minutes'");
@@ -92,17 +98,19 @@ export async function startSignIn(db: Queryable, clients: SsoClients, c: Connect
     code_challenge: await oidc.calculatePKCECodeChallenge(verifier), code_challenge_method: 'S256',
   };
   if (c.provider === 'google') params.hd = c.domain; // only accounts of that Google Workspace
-  return oidc.buildAuthorizationUrl(config, params).href;
+  return { url: oidc.buildAuthorizationUrl(config, params).href, state };
 }
 
 export interface SsoIdentity { orgId: string; email: string; name: string; autoJoin: boolean }
 
 /**
- * Finish a sign-in: check the provider's answer (signature, issuer, audience, nonce, PKCE),
+ * Finish a sign-in: check it comes back to the browser that started it, the provider's answer (signature, issuer, audience, nonce, PKCE),
  * then that the email belongs to a domain this organisation verified.
  */
-export async function finishSignIn(db: Queryable, clients: SsoClients, callbackUrl: URL): Promise<SsoIdentity> {
+export async function finishSignIn(db: Queryable, clients: SsoClients, callbackUrl: URL, browserState: string | undefined): Promise<SsoIdentity> {
   const state = callbackUrl.searchParams.get('state') ?? '';
+  // the sign-in must finish in the browser that started it, or someone could send their own sign-in link to another person
+  if (!state || state !== browserState) throw new ApiError(400, 'sso_expired');
   const r = await db.query<{ org_id: string; nonce: string; code_verifier: string }>(
     "delete from sso_logins where state = $1 and created_at > now() - interval '10 minutes' returning org_id, nonce, code_verifier", [state]);
   const login = r.rows[0];

@@ -7,6 +7,7 @@ import type { Mailer } from './mailer.js';
 import type { PaymentGateway } from './moyasar.js';
 import { esc } from './notify.js';
 import { SYSTEM, audit } from './audit.js';
+import { cspWithScript } from './security.js';
 import { ANNUAL_DISCOUNT, type Plan, PLANS, SAR_PER_USD } from './plans.js';
 
 /**
@@ -419,7 +420,7 @@ th,td{padding:6px 8px;border-bottom:1px solid #E7ECEF;text-align:left;vertical-a
 button{font:inherit;padding:6px 14px;border:1px solid #08776C;background:#08776C;color:#fff;border-radius:6px;cursor:pointer}
 @media print{body{background:#fff;padding:0}.doc{border:0}.print{display:none}}@media (max-width:640px){.cols{grid-template-columns:1fr}.doc{padding:16px}}
 </style></head><body>
-<div class="print"><button onclick="print()">Print / Save as PDF · طباعة</button></div>
+<div class="print"><button type="button">Print / Save as PDF · طباعة</button></div>
 <div class="doc">
 <div class="hd"><div><h1>${taxed ? 'Tax invoice' : 'Invoice'}</h1><div class="ar l" lang="ar" style="font-size:20px;font-weight:700">${taxed ? 'فاتورة ضريبية' : 'فاتورة'}</div></div>
 ${taxed ? `<div class="qr">${qr}</div>` : ''}</div>
@@ -440,5 +441,9 @@ ${b.address ? `<div dir="auto">${esc(b.address)}</div>` : ''}${b.vatNumber ? `<d
 ${vatCharged ? `<tr><td>VAT ${vatPct}% · ضريبة القيمة المضافة ${vatPct}٪</td><td class="num">${sar(inv.vat)}</td></tr>` : ''}
 <tr class="tot"><td>Total · الإجمالي</td><td class="num">${sar(inv.total)}</td></tr></tbody></table>
 ${vatCharged ? '' : '<p class="muted">The seller is not registered for VAT; no VAT is charged. · البائع غير مسجل في ضريبة القيمة المضافة، ولا تُحتسب ضريبة.</p>'}
-</div></body></html>`;
+</div><script>${INVOICE_SCRIPT}</script></body></html>`;
 }
+
+/** The invoice page's only script, allowed by its hash in the page's content security policy. */
+const INVOICE_SCRIPT = "document.querySelector('.print button').addEventListener('click', function () { print(); });";
+export const INVOICE_CSP = cspWithScript(INVOICE_SCRIPT);

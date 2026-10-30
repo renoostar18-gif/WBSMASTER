@@ -14,6 +14,7 @@ import { openApi } from './openapi.js';
 import { LiveHub } from './live.js';
 import { type Mailer, createMailer } from './mailer.js';
 import { RateLimiter } from './ratelimit.js';
+import { fromAnotherSite, securityHeaders } from './security.js';
 import { integrationRoutes } from './routes/integrations.js';
 import { ssoRoutes } from './routes/sso.js';
 import { billingRoutes } from './routes/billing.js';
@@ -68,9 +69,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   deps.live ??= new LiveHub();
   deps.mailer ??= createMailer(deps.config.smtpUrl, deps.config.mailFrom);
   deps.webhooks ??= new WebhookDispatcher(deps.db, deps.config.webhookAllowPrivate);
-  const app = Fastify({ logger: false, bodyLimit: 2 * 1024 * 1024, trustProxy: deps.config.trustProxy });
+  const hops = deps.config.trustProxy;
+  const app = Fastify({
+    logger: false, bodyLimit: 2 * 1024 * 1024,
+    // a number of hops: trust that many proxies from the right of X-Forwarded-For
+    trustProxy: typeof hops === 'number' ? (_addr: string, i: number) => i < hops : hops,
+  });
   app.register(cookie);
-  app.register(websocket);
+  // live messages from pages are tiny ({ type: 'select', itemId }); refuse anything large
+  app.register(websocket, { options: { maxPayload: 4096 } });
+  securityHeaders(app, { hsts: deps.config.secureCookies });
   app.decorateRequest('user', null);
   const keyLimit = new RateLimiter(deps.config.apiRateLimit);
   const authLimit = new RateLimiter(deps.config.authRateLimit);
@@ -78,6 +86,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.addHook('preHandler', async (req, reply) => {
     const path = req.url.split('?')[0]!;
+    const bearerHeader = /^Bearer\s/i.test(req.headers.authorization ?? '');
+    // changes sent with the session cookie must come from this site's pages (CSRF); Moyasar's server-to-server notice has no cookie
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS' && !bearerHeader &&
+        path !== '/api/billing/moyasar/notify' && fromAnotherSite(req, deps.config.appUrl)) {
+      throw new ApiError(403, 'cross_site_request');
+    }
     // sign-in and sign-up: limit guessing from one address
     if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup' || path === '/api/auth/sso/start')) {
       const r = authLimit.hit(`ip:${req.ip}`);
