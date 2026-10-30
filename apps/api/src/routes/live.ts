@@ -1,15 +1,18 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { AppDeps } from '../app.js';
 import { projectAccess } from '../permissions.js';
+import { fromAnotherSite } from '../security.js';
 
 /**
  * GET /api/projects/:projectId/live (WebSocket). Sends presence and "changed"
  * messages; accepts { "type": "select", "itemId": "…" | null } from the page.
- * Close codes: 4401 not signed in, 4404 no access to the project.
+ * Close codes: 4401 not signed in, 4403 opened from another site, 4404 no access to the project.
  */
 export const liveRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   app.get<{ Params: { projectId: string } }>('/projects/:projectId/live', { websocket: true }, async (socket, req) => {
     const user = req.user;
+    // a page of another site cannot open a connection with this browser's session (cross-site WebSocket hijacking)
+    if (fromAnotherSite(req, deps.config.appUrl)) { socket.close(4403, 'cross_site_request'); return; }
     if (!user) { socket.close(4401, 'not_signed_in'); return; }
     try {
       await projectAccess(deps.db, user, req.params.projectId);

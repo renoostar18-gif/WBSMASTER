@@ -10,6 +10,7 @@ import { MembersPage } from './pages/Members.js';
 import { PortfolioPage } from './pages/Portfolio.js';
 import { ProjectsPage } from './pages/Projects.js';
 import { SettingsPage } from './pages/Settings.js';
+import { safeNext } from './next.js';
 import { SharePage } from './pages/Share.js';
 import { ProjectPage } from './project/ProjectPage.js';
 import { SessionProvider, useSession } from './session.js';
@@ -28,7 +29,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
   const next = new URLSearchParams(useLocation().search).get('next');
   if (loading) return null;
   // signed in: go where the sign-in was for (an invitation), only within this site
-  return me ? <Navigate to={next && next.startsWith('/') && !next.startsWith('//') ? next : '/'} replace /> : <>{children}</>;
+  return me ? <Navigate to={safeNext(next)} replace /> : <>{children}</>;
 }
 
 /** Home: your projects when signed in, the public landing page otherwise. */

@@ -16,6 +16,8 @@ import {
 } from '../sso.js';
 
 type O = { Params: { orgId: string } };
+/** Short-lived cookie with the state of the sign-in this browser started. */
+const SSO_COOKIE = 'wbs_sso';
 const domainRe = /^(?=.{3,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 /** Single sign-on (spec 7.2, Business plan): settings for organisation admins, and the sign-in itself. */
@@ -23,7 +25,7 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   // without a SECRET_KEY nothing can be encrypted, so SSO cannot be set up or used
   const sealer = new Sealer(deps.config.secretKey ?? '');
   const ready = () => { if (!deps.config.secretKey) throw new ApiError(503, 'sso_unavailable'); };
-  const clients = new SsoClients(sealer, deps.config.ssoAllowHttp);
+  const clients = new SsoClients(sealer, deps.config.ssoAllowHttp, deps.config.ssoAllowHttp || deps.config.webhookAllowPrivate);
   const txt = deps.resolveTxt ?? (async (name: string) => (await resolveTxt(name)).map(parts => parts.join('')));
   const callbackUrl = () => `${deps.config.appUrl}/api/auth/sso/callback`;
 
@@ -137,21 +139,24 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   // ---- signing in ----
 
   /** Where to send this person to sign in, by their email's domain. */
-  app.post('/auth/sso/start', async req => {
+  app.post('/auth/sso/start', async (req, reply) => {
     const { email } = parse(z.object({ email: z.string().trim().toLowerCase().email().max(254) }), req.body);
     ready();
     const c = await connectionForEmail(deps.db, email);
     if (!c) throw notFound('sso_not_configured');
     const plan = (await deps.db.query<{ plan: keyof typeof PLANS }>('select plan from organisations where id = $1', [c.org_id])).rows[0]!.plan;
     if (!PLANS[plan].sso) throw forbidden('plan_sso');
-    return { url: await startSignIn(deps.db, clients, c, email, callbackUrl()) };
+    const { url, state } = await startSignIn(deps.db, clients, c, email, callbackUrl());
+    // ties the sign-in to this browser (checked in the callback); lax, so it comes back with the provider's redirect
+    reply.setCookie(SSO_COOKIE, state, { path: '/api/auth/sso', httpOnly: true, sameSite: 'lax', secure: deps.config.secureCookies, maxAge: 600 });
+    return { url };
   });
 
   /** The provider sends the person back here; sign them in (creating their account the first time if allowed). */
   app.get('/auth/sso/callback', async (req, reply) => {
     const url = new URL(req.url.replace(/^\/api\/auth\/sso\/callback/, ''), callbackUrl());
     try {
-      const who = await finishSignIn(deps.db, clients, url);
+      const who = await finishSignIn(deps.db, clients, url, req.cookies[SSO_COOKIE]);
       const userId = await tx(deps.db, async c => {
         let u = (await c.query<{ id: string }>('select id from users where lower(email) = $1', [who.email])).rows[0];
         const member = u ? (await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [who.orgId, u.id])).rowCount : 0;
@@ -167,6 +172,7 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
         return u.id;
       });
       setSessionCookie(reply, await createSession(deps.db, userId, deps.config.sessionDays), deps);
+      reply.clearCookie(SSO_COOKIE, { path: '/api/auth/sso' });
       return reply.redirect('/');
     } catch (e) {
       const code = e instanceof ApiError ? e.code : 'sso_failed';
