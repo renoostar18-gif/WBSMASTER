@@ -9,9 +9,12 @@ const SECTIONS: [keyof Summary, MessageKey, boolean][] = [
   ['achievements', 'sec_achievements', true], ['nextSteps', 'sec_nextSteps', true], ['risks', 'sec_risks', true], ['decisions', 'sec_decisions', false],
 ];
 
+/** What the summary needs from the project: the editor's store, or a public link's read-only data. */
+export type SummaryStore = Pick<ProjectStore, 'data' | 'model' | 'canEdit' | 'saveSummary' | 'calendar'>;
+
 /** Executive summary of one project (spec 4.9), from the same calculations as every other view. */
 export function SummaryView({ store, computed, maxLevel }: {
-  store: ProjectStore; computed: ComputedProject; maxLevel: number;
+  store: SummaryStore; computed: ComputedProject; maxLevel: number;
 }) {
   const i18n = useI18n();
   const { t, date } = i18n;
@@ -165,7 +168,7 @@ export function SummaryView({ store, computed, maxLevel }: {
 
 /** Each saved baseline and how far the planned finish moved (spec 4.8). */
 function BaselineHistory({ baselines, activeId, forecastFinish, store }: {
-  baselines: Baseline[]; activeId: string | null; forecastFinish: number | null; store: ProjectStore;
+  baselines: Baseline[]; activeId: string | null; forecastFinish: number | null; store: SummaryStore;
 }) {
   const { t, date } = useI18n();
   if (!baselines.length) return null;

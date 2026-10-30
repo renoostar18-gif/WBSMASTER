@@ -59,6 +59,8 @@ export function ActivityPanel({ store, items, codes, selected, onClose }: {
       case 'project.create': return t('a_project_create', { who });
       case 'project.settings': return t('a_project_settings', { who });
       case 'baseline.save': return t('a_baseline_save', { who, name: nv?.name ?? '' });
+      case 'share.create': return t('a_share_create', { who });
+      case 'share.revoke': return t('a_share_revoke', { who });
       default: return `${who}: ${e.action}`;
     }
   };

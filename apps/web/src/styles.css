@@ -462,3 +462,11 @@ code.record { font-family: var(--f-mono); font-size: 12px; background: var(--bg)
 .plan-card .price small { font-size: 12px; font-weight: 400; color: var(--muted); }
 .quote { display: flex; flex-direction: column; gap: 8px; border-block-start: 1px solid var(--line2); padding-block-start: 10px; }
 .sec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* public read-only links: the dialog, and the shared page */
+.share-form { display: flex; flex-direction: column; gap: 10px; }
+.share-views { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.share-views legend { font-size: 11.5px; color: var(--muted); padding: 0 4px; }
+.share-title { margin: 0; font-size: 16px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.demo-chip.share-chip, [dir="rtl"] .demo-chip.share-chip { padding: 4px 12px; }
+.share-foot { margin: 0; padding: 6px 16px; border-block-start: 1px solid var(--line); background: var(--panel); }
