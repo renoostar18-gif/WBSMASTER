@@ -31,10 +31,18 @@ async function see(p, text) {
   } catch {
     const alerts = await p.locator('[role=alert]').allInnerTexts().catch(() => []);
     const body = (await p.textContent('body').catch(() => '') ?? '').replace(/\s+/g, ' ').slice(0, 400);
-    throw new Error(`"${text}" did not appear at ${p.url()}; alerts: ${alerts.join(' | ') || 'none'}; page: ${body}`);
+    throw new Error(`"${text}" did not appear at ${p.url()}; alerts: ${alerts.join(' | ') || 'none'}; page: ${body}; api: ${calls.slice(-12).join(', ')}`);
   }
 }
-const watch = p => { p.on('pageerror', e => errors.push(e.message)); return p; };
+// the page's API calls, to explain a message that never appears
+const calls = [];
+const watch = p => {
+  p.on('pageerror', e => errors.push(e.message));
+  p.on('request', r => { if (r.url().includes('/api/')) calls.push(`-> ${r.method()} ${new URL(r.url()).pathname}`); });
+  p.on('response', r => { if (r.url().includes('/api/')) calls.push(`<- ${r.status()} ${new URL(r.url()).pathname}`); });
+  p.on('requestfailed', r => { if (r.url().includes('/api/')) calls.push(`xx ${new URL(r.url()).pathname} ${r.failure()?.errorText}`); });
+  return p;
+};
 
 // ---- signing up: a banner until the address is confirmed ----
 const email = `leen${stamp}@example.com`;
