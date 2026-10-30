@@ -77,6 +77,8 @@ const other = await browser.newContext({ viewport: { width: 1280, height: 860 } 
 const p = watch(await other.newPage());
 await p.goto(`${BASE}/signin`);
 await p.getByRole('link', { name: 'Forgot your password?' }).click();
+// the page changes without a reload: wait for it, or the email goes into the sign-in form still showing
+await p.getByRole('heading', { name: 'Forgot your password?' }).waitFor();
 await p.getByLabel('Email').fill(email.toUpperCase());
 await p.getByRole('button', { name: 'Send the link' }).click();
 await see(p, 'If there is an account for that email');
