@@ -471,3 +471,19 @@ code.record { font-family: var(--f-mono); font-size: 12px; background: var(--bg)
 .demo-chip.share-chip, [dir="rtl"] .demo-chip.share-chip { padding: 4px 12px; }
 .share-foot { margin: 0; padding: 6px 16px; border-block-start: 1px solid var(--line); background: var(--panel); }
 .shell > .notice.confirm-email { border-inline-start-color: var(--accent); }
+
+/* colour theme menu */
+.palette { position: relative; }
+.dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
+.palette-menu {
+  position: absolute; inset-block-start: calc(100% + 6px); inset-inline-end: 0; z-index: 30; min-width: 190px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+}
+.palette-menu .pick {
+  display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: transparent; color: var(--ink);
+  border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; cursor: pointer; text-align: start; white-space: nowrap;
+}
+.palette-menu .pick:hover { background: var(--n-bg); }
+.palette-menu .pick[aria-checked="true"] { border-color: var(--accent); background: var(--sel); font-weight: 600; }
+@media (max-width: 520px) { .palette-menu { grid-template-columns: 1fr; inset-inline-end: -40px; } }

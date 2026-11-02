@@ -148,6 +148,19 @@ with the same email is signed in, not duplicated.
 | `SECRET_KEY` | 32+ characters; encrypts SSO client secrets. Without it in production, SSO is unavailable (the rest works). |
 | `SSO_ALLOW_HTTP=1` | Allows a provider on plain http (local tests only; ignored in production). |
 
+## Colour themes
+
+The top bar has a colour menu with ten themes: Teal (the original), Ocean, Indigo, Violet, Rose, Copper,
+Forest, Gold, Slate and High contrast. Each has a light and a dark version, so the Auto / Light / Night button
+still works with every one. The choice is kept in the browser and on the account (`PATCH /me` with `palette`),
+so it follows the person to another device. Health colours (green, amber, red) never change. The colours for
+WBS levels 2 to 6 are chosen per theme so they stay clearly apart from the accent, which is level 1.
+
+The themes are data in `apps/web/src/themes/palettes.json`. After editing it, run
+`pnpm --filter @wbs-master/web gen:palettes` to regenerate `palettes.css`; a unit test fails when the two
+disagree, and others check that text, secondary text, the accent and button text meet contrast minimums in
+every theme and mode. Browser test: `node apps/web/e2e/themes.mjs`.
+
 ## Accounts: confirming the email, forgotten passwords
 
 Sign-up sends a link to confirm the address (valid 3 days; "Send the link again" on the banner until then).
@@ -284,7 +297,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 
 | Area | Routes |
 | --- | --- |
-| Account | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PATCH /me` |
+| Account | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PATCH /me` (name, locale, theme, notifications, `palette`) |
 | Email and password | `POST /auth/verify` (`{ token }` from the confirmation email), `POST /auth/verify/resend`, `POST /auth/password/forgot` (`{ email }`, same answer for unknown emails), `POST /auth/password/reset` (`{ token, password }`: signs other sessions out, signs this one in) |
 | Organisations | `POST /orgs`, `PATCH /orgs/:orgId`, `GET/POST /orgs/:orgId/members`, `PATCH/DELETE /orgs/:orgId/members/:userId` |
 | Organisation admin | `POST /orgs/:orgId/transfer` (`{ userId, stepDown? }`, owners); `POST /orgs/:orgId/deletion` (`{ confirm: "<organisation name>" }` → `{ deleteOn }`) and `DELETE /orgs/:orgId/deletion` to cancel (owners, signed-in sessions only); `GET /orgs/:orgId/audit` (`?action=member` or `member.added`, `?before=<next>`, `?limit=`; admins), `GET /orgs/:orgId/audit.csv` (Business) |
