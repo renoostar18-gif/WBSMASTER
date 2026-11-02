@@ -9,6 +9,7 @@ import { RateLimiter } from '../ratelimit.js';
 import { requireSsoFor } from './sso.js';
 import { acceptInvitation } from '../invites.js';
 import { audit } from '../audit.js';
+import { consumeToken, issueToken, markVerified, sendTokenEmail } from '../emailtokens.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(10, 'password_too_short').max(200);
@@ -40,6 +41,9 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
   const now = () => deps.today?.() ?? new Date();
   // guessing one account's password from many addresses: a pause after too many wrong ones
   const failures = new RateLimiter(deps.config.loginFailureLimit, 15 * 60_000);
+  // emails sent on request (confirmation again, password reset): a few per address or account each 15 minutes
+  const mailLimit = new RateLimiter(3, 15 * 60_000);
+  const link = (kind: 'verify' | 'reset', token: string) => `${deps.config.appUrl}/${kind}/${token}`;
 
   app.post('/auth/signup', async (req, reply) => {
     const body = parse(z.object({
@@ -61,14 +65,18 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
       const userId = u.rows[0]!.id;
       const who = { actor: { id: userId, name: body.name }, ip: req.ip };
       let orgId: string;
+      // an invitation link proves the address (acceptInvitation marks it confirmed)
       if (body.invite) orgId = await acceptInvitation(c, body.invite, { id: userId, email: body.email }, who);
       else {
         orgId = await createOrganisation(c, body.organisation ?? `${body.name}'s workspace`, userId, now());
         await audit(c, orgId, who, 'org.created', body.organisation ?? `${body.name}'s workspace`);
       }
       const token = await createSession(c, userId, deps.config.sessionDays);
-      return { userId, orgId, token };
+      const verify = body.invite ? null : await issueToken(c, userId, 'verify');
+      return { userId, orgId, token, verify };
     });
+    // anyone else confirms the address by the emailed link; until then they can work, but are invited, not added
+    if (out.verify) await sendTokenEmail(deps.mailer, 'verify', { email: body.email, name: body.name, locale: body.locale ?? 'en' }, link('verify', out.verify));
     setSessionCookie(reply, out.token, deps);
     return reply.status(201).send({ user: { id: out.userId, email: body.email, name: body.name }, orgId: out.orgId });
   });
@@ -90,6 +98,54 @@ export const authRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     }
     setSessionCookie(reply, await createSession(deps.db, u.id, deps.config.sessionDays), deps);
     return { user: { id: u.id, email: body.email, name: u.name } };
+  });
+
+  /** The link in the confirmation email. Works without being signed in. */
+  app.post('/auth/verify', async req => {
+    const { token } = parse(z.object({ token: z.string().max(100) }), req.body);
+    const userId = await consumeToken(deps.db, token, 'verify');
+    if (!userId) throw new ApiError(410, 'link_invalid');
+    await markVerified(deps.db, userId);
+    return { ok: true };
+  });
+
+  app.post('/auth/verify/resend', async req => {
+    const user = requireUser(req);
+    if (user.apiKey) throw new ApiError(403, 'not_with_api_key');
+    if (user.emailVerified) return { ok: true, alreadyVerified: true };
+    if (!mailLimit.hit(`verify:${user.id}`).ok) throw new ApiError(429, 'rate_limited');
+    await sendTokenEmail(deps.mailer, 'verify', user, link('verify', await issueToken(deps.db, user.id, 'verify')));
+    return { ok: true };
+  });
+
+  /** Forgotten password: the same answer whether or not the email has an account, so accounts cannot be discovered. */
+  app.post('/auth/password/forgot', async req => {
+    const body = parse(z.object({ email }), req.body);
+    const u = (await deps.db.query<{ id: string; email: string; name: string; locale: string }>(
+      'select id, email, name, locale from users where lower(email) = $1', [body.email])).rows[0];
+    // people whose organisation requires SSO sign in with their company account, not a password
+    const sso = await requireSsoFor(deps.db, body.email).then(() => false, () => true);
+    if (u && !sso && mailLimit.hit(`reset:${body.email}`).ok) {
+      await sendTokenEmail(deps.mailer, 'reset', u, link('reset', await issueToken(deps.db, u.id, 'reset')));
+    }
+    return { ok: true };
+  });
+
+  /** The link in the reset email: a new password, every other session signed out, and this browser signed in. */
+  app.post('/auth/password/reset', async (req, reply) => {
+    const body = parse(z.object({ token: z.string().max(100), password }), req.body);
+    const out = await tx(deps.db, async c => {
+      const userId = await consumeToken(c, body.token, 'reset');
+      if (!userId) throw new ApiError(410, 'link_invalid');
+      const u = (await c.query<{ id: string; email: string; name: string }>(
+        'update users set password_hash = $2, updated_at = now() where id = $1 returning id, email, name', [userId, await hashPassword(body.password)])).rows[0]!;
+      await markVerified(c, userId);
+      await c.query('delete from sessions where user_id = $1', [userId]);
+      return { u, token: await createSession(c, userId, deps.config.sessionDays) };
+    });
+    failures.clear(`email:${out.u.email.toLowerCase()}`);
+    setSessionCookie(reply, out.token, deps);
+    return { user: out.u };
   });
 
   app.post('/auth/logout', async (req, reply) => {

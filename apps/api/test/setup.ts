@@ -5,6 +5,9 @@ import { type Db, createDb } from '../src/db.js';
 import { LogMailer } from '../src/mailer.js';
 import { migrate } from '../src/migrate.js';
 
+/** Each app's captured emails, so sign-up can follow the confirmation link. */
+const mailboxes = new WeakMap<FastifyInstance, LogMailer>();
+
 export const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgres://postgres@localhost:5433/wbs_test?host=/tmp';
 /** Fixed "today" so dates in tests are stable: Thursday 22 Oct 2026. */
 export const TODAY = new Date(Date.UTC(2026, 9, 22));
@@ -25,6 +28,7 @@ export async function startApp(config: Partial<Config> = {}, deps: Partial<AppDe
   const mail = new LogMailer(true);
   const app = buildApp({ db, config: { ...loadConfig(), databaseUrl: TEST_DB, appUrl: 'https://app.example', authRateLimit: 1000, ...config }, today: () => TODAY, mailer: mail, ...deps });
   await app.ready();
+  mailboxes.set(app, mail);
   return { app, db, mail, close: async () => { await app.close(); await db.end(); } };
 }
 
@@ -49,10 +53,30 @@ export class Client {
   put = (url: string, body: unknown) => this.req('PUT', url, body);
   del = (url: string) => this.req('DELETE', url);
 
-  static async signUp(app: FastifyInstance, name: string, extra: Record<string, unknown> = {}) {
+  /**
+   * Sign up, then confirm the email by following the link in the confirmation email, as a person would.
+   * `{ verify: false }` leaves the address unconfirmed.
+   */
+  static async signUp(app: FastifyInstance, name: string, extra: Record<string, unknown> = {}, opts: { verify?: boolean } = {}) {
     const c = new Client(app);
-    const r = await c.post('/api/auth/signup', { email: `${name.toLowerCase()}@example.com`, password: 'correct horse battery', name, ...extra });
+    const email = String(extra.email ?? `${name.toLowerCase()}@example.com`);
+    const r = await c.post('/api/auth/signup', { email, password: 'correct horse battery', name, ...extra });
     if (r.status !== 201) throw new Error(`signup failed: ${JSON.stringify(r.body)}`);
+    if (opts.verify !== false && !extra.invite) await c.post('/api/auth/verify', { token: linkToken(app, email, 'verify') });
     return { client: c, userId: r.body.user.id as string, orgId: r.body.orgId as string };
   }
+}
+
+/** Let Client.signUp read this app's emails (for apps built without startApp). */
+export function trackMail(app: FastifyInstance, mail: LogMailer) {
+  mailboxes.set(app, mail);
+}
+
+/** The token in the newest confirmation or reset email sent to this address. */
+export function linkToken(app: FastifyInstance, email: string, kind: 'verify' | 'reset'): string {
+  const mail = mailboxes.get(app);
+  const m = [...(mail?.sent ?? [])].reverse().find(x => x.to.toLowerCase() === email.toLowerCase() && x.text.includes(`/${kind}/`));
+  const token = m && new RegExp(`/${kind}/([A-Za-z0-9_-]+)`).exec(m.text)?.[1];
+  if (!token) throw new Error(`no ${kind} email for ${email}`);
+  return token;
 }

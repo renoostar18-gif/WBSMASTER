@@ -40,7 +40,7 @@ export const api = {
 };
 
 export interface Me {
-  user: { id: string; email: string; name: string; locale: 'en' | 'ar'; theme: 'auto' | 'light' | 'dark'; notifyEmail: 'instant' | 'daily' | 'off' };
+  user: { id: string; email: string; name: string; locale: 'en' | 'ar'; theme: 'auto' | 'light' | 'dark'; notifyEmail: 'instant' | 'daily' | 'off'; emailVerified?: boolean };
   /** deleteOn: the organisation waits to be deleted on that date (only its owners see it then). */
   organisations: { id: string; name: string; plan: 'free' | 'team' | 'business'; role: string; deleteOn?: string | null }[];
 }

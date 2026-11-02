@@ -1,3 +1,4 @@
+import { ApiError, api } from './api.js';
 import { Bell } from './Bell.js';
 import type { Health } from '@wbs-master/engine';
 import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from 'react';
@@ -50,6 +51,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { me, signOut, theme, setTheme } = useSession();
   return (
+    <>
     <header className="top wrap">
       <Link className="mark" to="/"><i><b /><b /><b /><b /></i>{t('app')}</Link>
       {children}
@@ -65,6 +67,25 @@ export function TopBar({ children }: { children?: ReactNode }) {
       <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')} lang={locale === 'en' ? 'ar' : 'en'}>{t('language')}</button>
       {me && <button className="btn" onClick={signOut} title={me.user.email}>{t('signOut')}</button>}
     </header>
+    {me?.user.emailVerified === false && <ConfirmEmail email={me.user.email} />}
+    </>
+  );
+}
+
+/** Until the address is confirmed: say so, and offer the link again. */
+function ConfirmEmail({ email }: { email: string }) {
+  const { t, error } = useI18n();
+  const [sent, setSent] = useState<'idle' | 'sent' | string>('idle');
+  return (
+    <div className="notice confirm-email" role="status">
+      <span>{t('confirmEmail', { email })}</span>
+      {sent === 'sent' ? <span className="hint">{t('confirmEmailSent')}</span> : (
+        <button className="btn sm" onClick={async () => {
+          try { await api.post('/auth/verify/resend'); setSent('sent'); } catch (x) { setSent(error(x instanceof ApiError ? x.code : 'server_error')); }
+        }}>{t('confirmEmailResend')}</button>
+      )}
+      {sent !== 'idle' && sent !== 'sent' && <span className="err">{sent}</span>}
+    </div>
   );
 }
 

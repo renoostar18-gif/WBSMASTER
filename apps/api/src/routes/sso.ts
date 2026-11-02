@@ -5,6 +5,7 @@ import { type AppDeps, parse, requireUser, setSessionCookie } from '../app.js';
 import { createSession } from '../auth.js';
 import { checkRoomForMember } from '../billing.js';
 import { tx } from '../db.js';
+import { markVerified } from '../emailtokens.js';
 import { ApiError, badRequest, forbidden, notFound } from '../errors.js';
 import { orgAccess } from '../permissions.js';
 import { audit, by } from '../audit.js';
@@ -158,12 +159,20 @@ export const ssoRoutes = (deps: AppDeps): FastifyPluginAsync => async app => {
     try {
       const who = await finishSignIn(deps.db, clients, url, req.cookies[SSO_COOKIE]);
       const userId = await tx(deps.db, async c => {
-        let u = (await c.query<{ id: string }>('select id from users where lower(email) = $1', [who.email])).rows[0];
+        let u = (await c.query<{ id: string; verified: boolean }>(
+          'select id, email_verified_at is not null as verified from users where lower(email) = $1', [who.email])).rows[0];
         const member = u ? (await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [who.orgId, u.id])).rowCount : 0;
         // nobody joins an organisation that is waiting to be deleted
         const deleting = (await c.query('select 1 from organisations where id = $1 and delete_on is not null', [who.orgId])).rowCount;
         if (!member && (!who.autoJoin || deleting)) throw new ApiError(403, 'sso_not_member');
-        if (!u) u = (await c.query<{ id: string }>('insert into users (email, name) values ($1, $2) returning id', [who.email, who.name])).rows[0]!;
+        if (!u) u = (await c.query<{ id: string; verified: boolean }>('insert into users (email, name) values ($1, $2) returning id, true as verified', [who.email, who.name])).rows[0]!;
+        else if (!u.verified) {
+          // an account someone made with this address but never confirmed: the company account proves who owns it,
+          // so the password set by whoever made it, and their sessions, stop working
+          await c.query('update users set password_hash = null where id = $1', [u.id]);
+          await c.query('delete from sessions where user_id = $1', [u.id]);
+        }
+        await markVerified(c, u.id);
         if (!member) {
           await checkRoomForMember(c, who.orgId);
           await c.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'member') on conflict do nothing", [who.orgId, u.id]);

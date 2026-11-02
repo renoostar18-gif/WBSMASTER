@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { type AuditBy, audit } from './audit.js';
 import { checkRoomForMember } from './billing.js';
+import { markVerified } from './emailtokens.js';
 import type { Queryable } from './db.js';
 import { ApiError, conflict, forbidden } from './errors.js';
 import type { Mailer } from './mailer.js';
@@ -24,11 +25,15 @@ interface Org { id: string; name: string; plan: Plan }
  */
 export async function inviteOrAdd(c: Queryable, mailer: Mailer | undefined, appUrl: string, org: Org, inviter: Inviter, email: string, role: InviteRole) {
   if (role === 'guest' && !PLANS[org.plan].guests) throw forbidden('plan_no_guests');
-  const u = (await c.query<{ id: string; locale: string }>('select id, locale from users where lower(email) = $1', [email])).rows[0];
-  if (u) {
-    const m = await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [org.id, u.id]);
+  const found = (await c.query<{ id: string; locale: string; verified: boolean }>(
+    'select id, locale, email_verified_at is not null as verified from users where lower(email) = $1', [email])).rows[0];
+  if (found) {
+    const m = await c.query('select 1 from memberships where org_id = $1 and user_id = $2', [org.id, found.id]);
     if (m.rowCount) throw conflict('already_member');
   }
+  // only an account whose owner proved this address joins at once; anyone could have signed up with it,
+  // so an unconfirmed one gets the invitation link, which only reaches the real inbox
+  const u = found?.verified ? found : undefined;
   if (role !== 'guest') await checkRoomForMember(c, org.id, { exceptEmail: email });
   if (u) {
     await c.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3)', [org.id, u.id, role]);
@@ -91,6 +96,8 @@ export async function acceptInvitation(c: Queryable, token: string, user: { id: 
     if (inv.role !== 'guest') await checkRoomForMember(c, inv.org_id);
     await c.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3)', [inv.org_id, user.id, inv.role]);
   }
+  // the link reached this inbox, so the address is confirmed
+  await markVerified(c, user.id);
   await c.query('update invitations set accepted_at = now(), accepted_by = $2 where id = $1', [inv.id, user.id]);
   await audit(c, inv.org_id, who, 'invitation.accepted', inv.email, { role: inv.role });
   return inv.org_id;

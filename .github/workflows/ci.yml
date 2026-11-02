@@ -96,6 +96,9 @@ jobs:
       - name: Public links test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Public links" env WEB_URL=http://localhost:3000 node e2e/share.mjs
+      - name: Email confirmation and password reset test
+        working-directory: apps/web
+        run: ../../scripts/ci-e2e.sh "Email confirmation and password reset" env WEB_URL=http://localhost:3000 node e2e/account.mjs
       - name: Organisation admin test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Organisation admin" env WEB_URL=http://localhost:3000 node e2e/org-admin.mjs

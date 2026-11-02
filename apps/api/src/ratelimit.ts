@@ -26,6 +26,11 @@ export class RateLimiter {
     return Math.ceil((w.start + this.windowMs - now) / 1000);
   }
 
+  /** Forget a key, for example after a successful password reset. */
+  clear(key: string) {
+    this.windows.delete(key);
+  }
+
   private sweep(now: number) {
     for (const [k, w] of this.windows) if (now - w.start >= this.windowMs) this.windows.delete(k);
   }

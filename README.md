@@ -137,10 +137,21 @@ with the same email is signed in, not duplicated.
 | `SECRET_KEY` | 32+ characters; encrypts SSO client secrets. Without it in production, SSO is unavailable (the rest works). |
 | `SSO_ALLOW_HTTP=1` | Allows a provider on plain http (local tests only; ignored in production). |
 
+## Accounts: confirming the email, forgotten passwords
+
+Sign-up sends a link to confirm the address (valid 3 days; "Send the link again" on the banner until then).
+People can work straight away, but until the address is confirmed, admins who add them send an
+invitation instead of adding them at once. Following an invitation link, a password reset link or
+signing in with SSO also confirms the address; SSO removes the password of an account nobody confirmed.
+"Forgot your password?" on the sign-in page emails a one-hour, single-use link; the same answer is given
+whether or not the email has an account. Choosing a new password signs out every other session.
+Browser test: `node apps/web/e2e/account.mjs` (needs `DATABASE_URL`).
+
 ## Members and invitations
 
-Admins manage people on the Members page (`/members/:orgId`). Adding an email that already has an
-account adds the person at once and tells them by email. Anyone else gets an invitation email (English
+Admins manage people on the Members page (`/members/:orgId`). Adding an email that already has a
+**confirmed** account adds the person at once and tells them by email; an account whose owner has not
+confirmed the address gets the invitation link instead, since anyone could have signed up with it. Anyone else gets an invitation email (English
 and Arabic) with a link, valid for 14 days, to create their account and join. Someone who already has an
 account signs in from the link and comes back to it. A link only works for the email it was sent to, and
 only once; sending again makes a new link and the old one stops working. Open invitations for members
@@ -263,6 +274,7 @@ Errors return `{ "error": "<code>" }` with a stable code the web app translates.
 | Area | Routes |
 | --- | --- |
 | Account | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PATCH /me` |
+| Email and password | `POST /auth/verify` (`{ token }` from the confirmation email), `POST /auth/verify/resend`, `POST /auth/password/forgot` (`{ email }`, same answer for unknown emails), `POST /auth/password/reset` (`{ token, password }`: signs other sessions out, signs this one in) |
 | Organisations | `POST /orgs`, `PATCH /orgs/:orgId`, `GET/POST /orgs/:orgId/members`, `PATCH/DELETE /orgs/:orgId/members/:userId` |
 | Organisation admin | `POST /orgs/:orgId/transfer` (`{ userId, stepDown? }`, owners); `POST /orgs/:orgId/deletion` (`{ confirm: "<organisation name>" }` → `{ deleteOn }`) and `DELETE /orgs/:orgId/deletion` to cancel (owners, signed-in sessions only); `GET /orgs/:orgId/audit` (`?action=member` or `member.added`, `?before=<next>`, `?limit=`; admins), `GET /orgs/:orgId/audit.csv` (Business) |
 | Calendars | `GET/POST /orgs/:orgId/calendars`, `PATCH /orgs/:orgId/calendars/:id`, `POST /orgs/:orgId/calendars/:id/exceptions` (or `{ "saudiYear": 2027 }`), `DELETE .../exceptions/:date` |

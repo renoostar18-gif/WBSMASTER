@@ -3,6 +3,7 @@
 // Upgrading the test organisation to the Team plan needs the database (DATABASE_URL, as for the API).
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
+import { confirmEmail } from './confirm-email.mjs';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:5173';
 const API = `${BASE}/api`;
@@ -19,7 +20,9 @@ await db.connect();
 async function account(name) {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
-  const r = await ctx.request.post(`${API}/auth/signup`, { data: { email: `${name.split(' ')[0].toLowerCase()}${stamp}@example.com`, password: 'correct horse battery', name } });
+  const email = `${name.split(' ')[0].toLowerCase()}${stamp}@example.com`;
+  const r = await ctx.request.post(`${API}/auth/signup`, { data: { email, password: 'correct horse battery', name } });
+  await confirmEmail(API, email);
   return { ctx, body: await r.json() };
 }
 const a = await account('Rayan Hamdan');

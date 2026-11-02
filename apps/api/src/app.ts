@@ -93,7 +93,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       throw new ApiError(403, 'cross_site_request');
     }
     // sign-in and sign-up: limit guessing from one address
-    if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup' || path === '/api/auth/sso/start')) {
+    if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/signup' || path === '/api/auth/sso/start' ||
+      path === '/api/auth/password/forgot' || path === '/api/auth/password/reset' || path === '/api/auth/verify')) {
       const r = authLimit.hit(`ip:${req.ip}`);
       if (!r.ok) { reply.header('retry-after', r.retryAfter); throw new ApiError(429, 'rate_limited'); }
     }
