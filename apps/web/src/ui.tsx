@@ -1,6 +1,7 @@
 import { ApiError, api } from './api.js';
 import { PALETTES, paletteById } from './themes/palettes.js';
 import { Bell } from './Bell.js';
+import { Logo } from './Logo.js';
 import type { Health } from '@wbs-master/engine';
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -54,7 +55,7 @@ export function TopBar({ children, end }: { children?: ReactNode; end?: ReactNod
   return (
     <>
     <header className="top wrap">
-      <Link className="mark" to="/"><i><b /><b /><b /><b /></i>{t('app')}</Link>
+      <Link className="mark" to="/"><Logo />{t('app')}</Link>
       {children}
       <span className="sp" />
       {import.meta.env.MODE === 'demo' && (

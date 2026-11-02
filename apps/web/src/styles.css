@@ -42,10 +42,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .shell { display: flex; flex-direction: column; height: 100%; }
 .top { display: flex; align-items: center; gap: 12px; padding-block: 10px; border-block-end: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
 .mark { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; color: inherit; text-decoration: none; }
-.mark i { display: grid; grid-template-columns: repeat(3, 6px); gap: 2px; }
-.mark i b { height: 6px; background: var(--accent); border-radius: 1px; }
-.mark i b:nth-child(1) { grid-column: 2; }
-.mark i b:nth-child(n+2) { opacity: .6; }
+.mark .logo { color: var(--accent); flex: none; }
 .top .sp { flex: 1; }
 .crumb { color: var(--muted); }
 .viewers { display: inline-flex; align-items: center; }

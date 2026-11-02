@@ -1,6 +1,7 @@
 import { Fragment, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n.js';
+import { Logo } from '../Logo.js';
 import { useSession } from '../session.js';
 import { TopBar } from '../ui.js';
 import { SITE_COPY } from './copy.js';
@@ -41,7 +42,7 @@ export function SiteFooter() {
     <footer className="site-foot">
       <div className="site-in foot-cols">
         <div className="foot-brand">
-          <Link className="mark" to="/"><i><b /><b /><b /><b /></i>WBS Master</Link>
+          <Link className="mark" to="/"><Logo />WBS Master</Link>
           <p className="muted">{f.tagline}</p>
           <p className="muted foot-ksa">{f.hosted}</p>
         </div>

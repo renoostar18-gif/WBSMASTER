@@ -148,6 +148,13 @@ with the same email is signed in, not duplicated.
 | `SECRET_KEY` | 32+ characters; encrypts SSO client secrets. Without it in production, SSO is unavailable (the rest works). |
 | `SSO_ALLOW_HTTP=1` | Allows a provider on plain http (local tests only; ignored in production). |
 
+## Logo
+
+The mark is a feather whose vanes are schedule bars (Raysha, ريشة, means feather). It is one shape drawn in
+one colour, so it takes the accent of the active colour theme: in the top bar, on the landing page and on
+shared-link pages (`apps/web/src/Logo.tsx`), and as the browser-tab icon, which is recoloured when the theme or
+light/dark mode changes. The default tab icon in `index.html` is the teal one.
+
 ## Colour themes
 
 The top bar has a colour menu with ten themes: Teal (the original), Ocean, Indigo, Violet, Rose, Copper,

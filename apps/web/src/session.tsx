@@ -1,5 +1,6 @@
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ApiError, type Me, api } from './api.js';
+import { syncFavicon } from './Logo.js';
 import { applyPalette, isPalette, storedPalette } from './themes/palettes.js';
 
 export type Theme = 'auto' | 'light' | 'dark';
@@ -33,6 +34,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => applyTheme(theme), [theme]);
   const [palette, setPaletteState] = useState<string>(storedPalette);
   useEffect(() => applyPalette(palette), [palette]);
+  // the browser-tab icon takes the accent of the theme and mode now showing, including when the system switches
+  useEffect(() => {
+    syncFavicon();
+    const dark = window.matchMedia?.('(prefers-color-scheme: dark)');
+    dark?.addEventListener('change', syncFavicon);
+    return () => dark?.removeEventListener('change', syncFavicon);
+  }, [palette, theme]);
 
   const refresh = useCallback(async () => {
     try {

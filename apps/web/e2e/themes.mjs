@@ -30,6 +30,11 @@ await page.getByRole('radio', { name: 'Ocean' }).click();
 check(await palette(page) === 'ocean' && await accent(page) === '#1661B6', 'choosing Ocean changes the colours at once');
 check(await page.locator('#palette-button').innerText().then(t => t.includes('Ocean')), 'the button names the active theme');
 
+// the browser-tab icon is the feather, in the theme's colour
+const icon = p => p.evaluate(() => decodeURIComponent(document.querySelector('link[rel="icon"]').getAttribute('href')).toUpperCase());
+check((await icon(page)).includes('FILL="#1661B6"') && (await icon(page)).includes('ROTATE(24'), 'the tab icon is the feather in the theme colour');
+check(await page.locator('.top .mark svg.logo').count() === 1, 'the top bar shows the feather logo');
+
 // the other colours that depend on it: the level colours stay clear of the accent
 const levels = await page.evaluate(() => ['--l1', '--l2', '--l3'].map(v => getComputedStyle(document.documentElement).getPropertyValue(v).trim().toUpperCase()));
 check(new Set(levels).size === 3 && levels[0] === '#1661B6', 'level 1 follows the accent and the other levels stay different from it');
@@ -38,9 +43,12 @@ check(new Set(levels).size === 3 && levels[0] === '#1661B6', 'level 1 follows th
 await page.locator('#palette-button').click();
 await page.keyboard.press('Escape');
 check(await page.getByRole('radiogroup').count() === 0, 'Escape closes the menu');
-await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+const modeButton = page.getByRole('button', { name: /^(Auto|Light|Night)$/ });
+for (let i = 0; i < 3 && !(await modeButton.innerText()).includes('Night'); i++) await modeButton.click();
+await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
 check(await palette(page) === 'ocean' && await accent(page) === '#6CA7EA', 'in dark mode the same theme uses its dark colours');
-await page.evaluate(() => { delete document.documentElement.dataset.theme; });
+check((await icon(page)).includes('FILL="#6CA7EA"'), 'and the tab icon follows it');
+while (!(await modeButton.innerText()).includes('Auto')) await modeButton.click();
 
 // kept in this browser...
 await page.reload();
