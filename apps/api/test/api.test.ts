@@ -34,6 +34,24 @@ describe('sign-up and sign-in', () => {
   });
 });
 
+describe('colour theme', () => {
+  it('is saved on the account, shown on every sign-in, and refuses anything that is not a theme id', async () => {
+    const { client } = await Client.signUp(t.app, 'Painter');
+    expect((await client.get('/api/me')).body.user.palette).toBeNull();
+    expect((await client.patch('/api/me', { palette: 'ocean' })).body.user.palette).toBe('ocean');
+    // a second sign-in (another browser) gets the same theme
+    const again = new Client(t.app);
+    await again.post('/api/auth/login', { email: 'painter@example.com', password: 'correct horse battery' });
+    expect((await again.get('/api/me')).body.user.palette).toBe('ocean');
+    for (const bad of ['Ocean', 'a', 'x; drop table users', '<b>', '']) {
+      expect((await client.patch('/api/me', { palette: bad })).status).toBe(400);
+    }
+    // changing something else keeps it
+    await client.patch('/api/me', { name: 'Painter P' });
+    expect((await client.get('/api/me')).body.user.palette).toBe('ocean');
+  });
+});
+
 describe('projects and edits through the engine', () => {
   let owner: Client, orgId: string, projectId: string;
 

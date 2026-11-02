@@ -1,7 +1,9 @@
 import { ApiError, api } from './api.js';
+import { PALETTES, paletteById } from './themes/palettes.js';
 import { Bell } from './Bell.js';
+import { Logo } from './Logo.js';
 import type { Health } from '@wbs-master/engine';
-import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from 'react';
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type MessageKey, useI18n } from './i18n.js';
 import { type Theme, useSession } from './session.js';
@@ -53,7 +55,7 @@ export function TopBar({ children, end }: { children?: ReactNode; end?: ReactNod
   return (
     <>
     <header className="top wrap">
-      <Link className="mark" to="/"><i><b /><b /><b /><b /></i>{t('app')}</Link>
+      <Link className="mark" to="/"><Logo />{t('app')}</Link>
       {children}
       <span className="sp" />
       {import.meta.env.MODE === 'demo' && (
@@ -63,6 +65,7 @@ export function TopBar({ children, end }: { children?: ReactNode; end?: ReactNod
         </span>
       )}
       {me && <Bell />}
+      <PalettePicker />
       <button className="btn" onClick={() => setTheme(NEXT_THEME[theme])} title={t('theme')}>{t(`theme_${theme}` as MessageKey)}</button>
       <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')} lang={locale === 'en' ? 'ar' : 'en'}>{t('language')}</button>
       {me && <button className="btn" onClick={signOut} title={me.user.email}>{t('signOut')}</button>}
@@ -70,6 +73,40 @@ export function TopBar({ children, end }: { children?: ReactNode; end?: ReactNod
     </header>
     {me?.user.emailVerified === false && <ConfirmEmail email={me.user.email} />}
     </>
+  );
+}
+
+/** Colour themes: a small menu from the top bar. The choice is kept in this browser and on the account. */
+export function PalettePicker() {
+  const { t, locale } = useI18n();
+  const { palette, setPalette } = useSession();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [open]);
+  const current = paletteById(palette);
+  return (
+    <div className="palette" ref={box}>
+      <button className="btn" id="palette-button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(o => !o)} title={t('colours')}>
+        <i className="dot" style={{ background: 'var(--accent)' }} /><span className="lbl-long">{current.name[locale]}</span>
+      </button>
+      {open && (
+        <div className="palette-menu" role="radiogroup" aria-label={t('colours')}>
+          {PALETTES.map(p => (
+            <button key={p.id} className="pick" role="radio" aria-checked={p.id === palette} data-palette-id={p.id} onClick={() => { setPalette(p.id); setOpen(false); }}>
+              <i className="dot split" style={{ background: `linear-gradient(135deg, ${p.light.accent} 50%, ${p.dark.accent} 50%)` }} />
+              <span>{p.name[locale]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

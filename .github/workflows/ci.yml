@@ -102,6 +102,9 @@ jobs:
       - name: Email confirmation and password reset test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Email confirmation and password reset" env WEB_URL=http://localhost:3000 node e2e/account.mjs
+      - name: Colour themes test
+        working-directory: apps/web
+        run: ../../scripts/ci-e2e.sh "Colour themes" env WEB_URL=http://localhost:3000 node e2e/themes.mjs
       - name: Organisation admin test
         working-directory: apps/web
         run: ../../scripts/ci-e2e.sh "Organisation admin" env WEB_URL=http://localhost:3000 node e2e/org-admin.mjs

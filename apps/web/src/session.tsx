@@ -1,5 +1,7 @@
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ApiError, type Me, api } from './api.js';
+import { syncFavicon } from './Logo.js';
+import { applyPalette, isPalette, storedPalette } from './themes/palettes.js';
 
 export type Theme = 'auto' | 'light' | 'dark';
 
@@ -10,6 +12,9 @@ interface Session {
   signOut: () => Promise<void>;
   theme: Theme;
   setTheme: (t: Theme) => void;
+  /** The colour theme (not light or dark: that is `theme`). */
+  palette: string;
+  setPalette: (id: string) => void;
 }
 
 const Ctx = createContext<Session | null>(null);
@@ -27,10 +32,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return 'auto';
   });
   useEffect(() => applyTheme(theme), [theme]);
+  const [palette, setPaletteState] = useState<string>(storedPalette);
+  useEffect(() => applyPalette(palette), [palette]);
+  // the browser-tab icon takes the accent of the theme and mode now showing, including when the system switches
+  useEffect(() => {
+    syncFavicon();
+    const dark = window.matchMedia?.('(prefers-color-scheme: dark)');
+    dark?.addEventListener('change', syncFavicon);
+    return () => dark?.removeEventListener('change', syncFavicon);
+  }, [palette, theme]);
 
   const refresh = useCallback(async () => {
     try {
-      setMe(await api.get<Me>('/me'));
+      const got = await api.get<Me>('/me');
+      setMe(got);
+      // signed in: the theme saved on the account follows the person to this browser
+      if (isPalette(got.user.palette)) setPaletteState(got.user.palette);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setMe(null);
       else throw e;
@@ -50,7 +67,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     api.patch('/me', { theme: t }).catch(() => {});
   }, []);
 
-  return <Ctx.Provider value={{ me, loading, refresh, signOut, theme, setTheme }}>{children}</Ctx.Provider>;
+  const setPalette = useCallback((id: string) => {
+    if (!isPalette(id)) return;
+    setPaletteState(id);
+    api.patch('/me', { palette: id }).catch(() => {});
+  }, []);
+
+  return <Ctx.Provider value={{ me, loading, refresh, signOut, theme, setTheme, palette, setPalette }}>{children}</Ctx.Provider>;
 }
 
 export function useSession(): Session {

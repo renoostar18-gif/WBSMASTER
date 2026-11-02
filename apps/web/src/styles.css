@@ -42,10 +42,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .shell { display: flex; flex-direction: column; height: 100%; }
 .top { display: flex; align-items: center; gap: 12px; padding-block: 10px; border-block-end: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
 .mark { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; color: inherit; text-decoration: none; }
-.mark i { display: grid; grid-template-columns: repeat(3, 6px); gap: 2px; }
-.mark i b { height: 6px; background: var(--accent); border-radius: 1px; }
-.mark i b:nth-child(1) { grid-column: 2; }
-.mark i b:nth-child(n+2) { opacity: .6; }
+.mark .logo { color: var(--accent); flex: none; }
 .top .sp { flex: 1; }
 .crumb { color: var(--muted); }
 .viewers { display: inline-flex; align-items: center; }
@@ -471,3 +468,19 @@ code.record { font-family: var(--f-mono); font-size: 12px; background: var(--bg)
 .demo-chip.share-chip, [dir="rtl"] .demo-chip.share-chip { padding: 4px 12px; }
 .share-foot { margin: 0; padding: 6px 16px; border-block-start: 1px solid var(--line); background: var(--panel); }
 .shell > .notice.confirm-email { border-inline-start-color: var(--accent); }
+
+/* colour theme menu */
+.palette { position: relative; }
+.dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
+.palette-menu {
+  position: absolute; inset-block-start: calc(100% + 6px); inset-inline-end: 0; z-index: 30; min-width: 190px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+}
+.palette-menu .pick {
+  display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: transparent; color: var(--ink);
+  border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; cursor: pointer; text-align: start; white-space: nowrap;
+}
+.palette-menu .pick:hover { background: var(--n-bg); }
+.palette-menu .pick[aria-checked="true"] { border-color: var(--accent); background: var(--sel); font-weight: 600; }
+@media (max-width: 520px) { .palette-menu { grid-template-columns: 1fr; inset-inline-end: -40px; } }

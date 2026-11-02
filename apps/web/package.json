@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "build:demo": "node scripts/build-demo.mjs"
+    "build:demo": "node scripts/build-demo.mjs",
+    "gen:palettes": "node scripts/gen-palettes.mjs"
   },
   "dependencies": {
     "@wbs-master/engine": "workspace:*",

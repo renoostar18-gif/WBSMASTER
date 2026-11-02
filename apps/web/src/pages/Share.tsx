@@ -4,6 +4,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ApiError, api } from '../api.js';
+import { Logo } from '../Logo.js';
 import { type MessageKey, useI18n } from '../i18n.js';
 import { visibleItems } from '../project/actions.js';
 import { ChartView } from '../project/ChartView.js';
@@ -91,7 +92,7 @@ export function SharePage() {
 
   const bar = (
     <header className="top wrap">
-      <span className="mark"><i><b /><b /><b /><b /></i>{t('app')}</span>
+      <span className="mark"><Logo />{t('app')}</span>
       {data && <h1 className="share-title" dir="auto">{data.project.name}</h1>}
       <span className="sp" />
       <span className="demo-chip share-chip" role="note">{t('sharedNote')}</span>
