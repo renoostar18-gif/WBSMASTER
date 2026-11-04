@@ -28,7 +28,9 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ground)}
 .mark{display:grid;grid-template-columns:repeat(2,16px);gap:5px}
 .mark b{width:16px;height:16px;border-radius:3px;background:var(--teal)}
 .mark b:nth-child(1){opacity:.55}.mark b:nth-child(4){opacity:.55}
-.foot{position:absolute;right:150px;bottom:88px;font:500 24px "Plex";color:var(--muted)}
+.foot{position:absolute;right:150px;bottom:70px;display:flex;align-items:center;gap:22px;font:500 22px "Plex";color:var(--muted)}
+.foot img{height:92px;width:auto;display:block}
+.foot span{border-right:1px solid rgba(255,255,255,.18);padding-right:22px}
 </style>
 </head>
 <body>
@@ -52,7 +54,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ground)}
     <div class="rule" id="rule"></div>
   </div>
   <div class="brand clip" id="brand" data-start="0" data-duration="7"><span class="mark"><b></b><b></b><b></b><b></b></span>WBS Builder</div>
-  <div class="foot clip" id="foot" data-start="0" data-duration="7">Complete training</div>
+  <div class="foot clip" id="foot" data-start="0" data-duration="7"><span id="footTxt">Complete training</span><img src="assets/pmo_logo.png" alt="PMO Centre of Excellence"></div>
 </div>
 <script>
 const v = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
@@ -62,7 +64,7 @@ document.getElementById('num').textContent = v.num || '';
 document.getElementById('ttl').textContent = v.title || '';
 document.getElementById('sub').textContent = v.sub || '';
 if (!v.num) document.getElementById('num').style.display = 'none';
-if (kind === 'title') { document.getElementById('ttl').style.fontSize = '118px'; document.getElementById('foot').textContent = 'Plan · Track · Report'; }
+if (kind === 'title') { document.getElementById('ttl').style.fontSize = '118px'; document.getElementById('footTxt').textContent = 'Plan · Track · Report'; }
 const tl = gsap.timeline({ paused: true });
 const bars = ['#b1','#b2','#b3','#b4','#b5','#b6','#b7'];
 tl.fromTo('#grid', { opacity: 0 }, { opacity: 1, duration: .6, ease: 'power2.out' }, 0);
