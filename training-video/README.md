@@ -19,6 +19,7 @@ videos are not stored here; they are too large for git.
 | Recording | `engine/rec.js`, `engine/overlay.js`, `engine/ch/cXX.js`, `engine/run.js` | Drives the real tool (`site/wbs-builder.html`, served on `localhost:8765`) in Chromium. A screencast records every frame with its time. The overlay draws the cursor, click ripples, key badges, callouts and info cards. Each beat lasts at least as long as its narration. |
 | Zooms | `engine/comp.py` | Turns the timed frames into 30 fps video with eased zoom-ins from the logged keyframes. |
 | Cards | `cards/index.html`, `cards/batch.json` | HyperFrames composition for the title, chapter and outro cards (`npx hyperframes render --batch cards/batch.json -o "renders/card_{index}.mp4"`). |
+| Intro | `intro/index.html` | HyperFrames composition for the presentation-style cold open (three scenes timed to the cold-open narration). Render it and use it as `rec/c00/screen.mp4`. |
 | Music | `engine/music.py` | MusicGen small, run locally (HyperFrames' free offline route). |
 | Edit | `engine/assemble.py` | Narration, the sound effects bundled with HyperFrames (Pixabay licence), music that dips under the voice, burned captions (libass, Arabic right to left), chapter metadata, per-chapter clips. `assemble.py both` builds the masters; `assemble.py portal` builds the training-page clips and `site/clips.json`. |
 | Checks | `engine/review.py`, `engine/zoomrev.py`, `engine/landtest.js` | Contact sheets of each beat and of every zoom, and landing page screenshots. |

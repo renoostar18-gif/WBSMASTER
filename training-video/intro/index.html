@@ -1,0 +1,102 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=1920, height=1080">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+<style>
+@font-face{font-family:"Plex";src:url(assets/fonts/IBMPlexSans-400.ttf);font-weight:400}
+@font-face{font-family:"Plex";src:url(assets/fonts/IBMPlexSans-600.ttf);font-weight:600}
+@font-face{font-family:"Plex";src:url(assets/fonts/IBMPlexSans-700.ttf);font-weight:700}
+@font-face{font-family:"Mono";src:url(assets/fonts/IBMPlexMono-600.ttf);font-weight:600}
+:root{--bg:#0B1218;--panel:#121C24;--ink:#EEF4F2;--muted:#9FB0B8;--line:#24343F;--teal:#2FC7B4;--blue:#6FA9FF;--violet:#CB94FF;--orange:#FFA057;--red:#FF6A5C;--amber:#FFC23D;--green:#3FE07F}
+*{margin:0;padding:0;box-sizing:border-box}html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+#root{position:relative;width:1920px;height:1080px;font-family:"Plex";color:var(--ink);background:radial-gradient(1100px 700px at 75% 35%,#12302C,rgba(11,18,24,0) 70%),var(--bg)}
+.sc{position:absolute;inset:0;padding:120px 150px}
+.k{font:600 24px/1 "Plex";letter-spacing:.22em;text-transform:uppercase;color:var(--teal)}
+.h{font:700 76px/1.06 "Plex";letter-spacing:-.02em;margin-top:22px;max-width:1500px}
+.h em{font-style:normal;color:var(--teal)}
+/* scene 1: list -> tree */
+.rows{position:absolute;left:150px;top:420px;width:640px}
+.row{height:62px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;font:400 28px "Plex";color:var(--muted)}
+.row b{font:600 20px "Mono";color:#5F7480;width:34px}
+.tree{position:absolute;left:900px;top:400px;width:880px;height:520px}
+.node{position:absolute;width:250px;height:84px;border-radius:12px;background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--c);padding:12px 16px}
+.node i{display:block;font:600 18px "Mono";color:var(--c);font-style:normal}.node span{font:600 24px "Plex"}
+.root{left:315px;top:0;border-left:1px solid var(--line);border-top:6px solid var(--ink);text-align:center}
+.wire{position:absolute;background:var(--line)}
+/* scene 2: tiles */
+.tiles{position:absolute;left:150px;right:150px;top:420px;display:grid;grid-template-columns:repeat(4,1fr);gap:28px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:30px;height:420px;display:flex;flex-direction:column;gap:16px}
+.tile h3{font:700 34px/1.15 "Plex"}.tile p{font:400 22px/1.4 "Plex";color:var(--muted)}
+.vis{flex:1;position:relative}
+.gb{position:absolute;height:20px;border-radius:5px}
+.pill{display:inline-flex;align-items:center;gap:10px;font:600 22px "Plex";padding:8px 16px;border-radius:999px;margin:0 0 12px;color:#06110D}
+.kpi{font:700 64px "Plex"}.bar{height:12px;border-radius:6px;background:var(--line);position:relative;margin-top:10px}.bar b{position:absolute;inset:0 auto 0 0;background:var(--teal);border-radius:6px}
+/* scene 3: course map */
+.chs{position:absolute;left:150px;right:150px;top:400px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,auto);grid-auto-flow:column;gap:12px 40px}
+.ch{display:flex;gap:18px;align-items:baseline;font:400 28px "Plex";border-bottom:1px solid var(--line);padding-bottom:12px}
+.ch b{font:600 22px "Mono";color:var(--teal)}
+.logo{position:absolute;right:150px;bottom:70px;height:110px}
+.brand{position:absolute;left:150px;bottom:84px;font:600 26px "Plex";display:flex;gap:14px;align-items:center}
+.brand i{display:grid;grid-template-columns:repeat(2,16px);gap:5px}.brand i b{width:16px;height:16px;border-radius:3px;background:var(--teal)}
+</style></head><body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="20.7" data-width="1920" data-height="1080">
+ <div class="sc clip" id="s1" data-start="0" data-duration="7.05">
+  <div class="k">The idea</div><div class="h" id="h1">Every project starts as a list.<br><em>WBS Builder makes it a plan.</em></div>
+  <div class="rows" id="rows">
+   <div class="row"><b>01</b>Project charter</div><div class="row"><b>02</b>Electrical design</div><div class="row"><b>03</b>Mechanical design</div>
+   <div class="row"><b>04</b>Prototype build</div><div class="row"><b>05</b>Type tests</div><div class="row"><b>06</b>Commercial launch</div>
+  </div>
+  <div class="tree" id="tree">
+   <div class="wire" style="left:440px;top:84px;width:2px;height:40px"></div><div class="wire" style="left:125px;top:124px;width:632px;height:2px"></div>
+   <div class="wire" style="left:125px;top:124px;width:2px;height:36px"></div><div class="wire" style="left:440px;top:124px;width:2px;height:36px"></div><div class="wire" style="left:755px;top:124px;width:2px;height:36px"></div>
+   <div class="node root" style="--c:var(--ink)"><i>0 · Project</i><span>24 kV RMU</span></div>
+   <div class="node n1" style="left:0;top:160px;--c:var(--teal)"><i>1</i><span>Design</span></div>
+   <div class="node n1" style="left:315px;top:160px;--c:var(--teal)"><i>2</i><span>Prototype</span></div>
+   <div class="node n1" style="left:630px;top:160px;--c:var(--teal)"><i>3</i><span>Launch</span></div>
+   <div class="node n2" style="left:30px;top:270px;--c:var(--blue)"><i>1.1</i><span>Electrical</span></div>
+   <div class="node n2" style="left:30px;top:370px;--c:var(--blue)"><i>1.2</i><span>Mechanical</span></div>
+   <div class="node n2" style="left:345px;top:270px;--c:var(--blue)"><i>2.1</i><span>Build</span></div>
+   <div class="node n2" style="left:345px;top:370px;--c:var(--blue)"><i>2.2</i><span>Type tests</span></div>
+  </div>
+ </div>
+ <div class="sc clip" id="s2" data-start="7.05" data-duration="7.1">
+  <div class="k">What you get</div><div class="h">Plan it, schedule it, watch it, <em>report it.</em></div>
+  <div class="tiles">
+   <div class="tile t"><h3>Work breakdown</h3><p>Levels, codes and owners that renumber themselves.</p><div class="vis"><div class="gb" style="left:0;top:20px;width:70%;background:var(--teal)"></div><div class="gb" style="left:12%;top:60px;width:50%;background:var(--blue)"></div><div class="gb" style="left:24%;top:100px;width:40%;background:var(--violet)"></div><div class="gb" style="left:36%;top:140px;width:30%;background:var(--orange)"></div></div></div>
+   <div class="tile t"><h3>A live schedule</h3><p>Gantt, links and the critical path move together.</p><div class="vis"><div class="gb g" style="left:0;top:20px;width:40%;background:var(--blue)"></div><div class="gb g" style="left:40%;top:60px;width:30%;background:var(--blue);outline:3px solid var(--red)"></div><div class="gb g" style="left:70%;top:100px;width:28%;background:var(--blue);outline:3px solid var(--red)"></div><div style="position:absolute;left:58%;top:0;bottom:0;border-left:3px dashed var(--red)"></div></div></div>
+   <div class="tile t"><h3>Delay warnings</h3><p>Health from your dates, with the reason in plain words.</p><div class="vis"><span class="pill" style="background:var(--red)">● Delayed +14d</span><br><span class="pill" style="background:var(--amber)">● At risk +7d</span><br><span class="pill" style="background:var(--green)">● On track</span></div></div>
+   <div class="tile t"><h3>One-click report</h3><p>Project and portfolio summaries for email or Teams.</p><div class="vis"><div class="kpi">28%</div><div class="bar"><b style="width:28%"></b></div><p style="margin-top:14px">Forecast finish 25 Mar 27</p></div></div>
+  </div>
+ </div>
+ <div class="sc clip" id="s3" data-start="14.15" data-duration="6.55">
+  <div class="k">This training</div><div class="h">13 chapters. Step by step, <em>in the real tool.</em></div>
+  <div class="chs" id="chs">
+   <div class="ch"><b>01</b>What WBS Builder is</div><div class="ch"><b>02</b>Screen tour</div><div class="ch"><b>03</b>Projects</div>
+   <div class="ch"><b>04</b>Importing from Excel</div><div class="ch"><b>05</b>Building the WBS</div><div class="ch"><b>06</b>Dates and health</div>
+   <div class="ch"><b>07</b>Baselines</div><div class="ch"><b>08</b>Critical path</div><div class="ch"><b>09</b>The Gantt view</div>
+   <div class="ch"><b>10</b>Project Summary</div><div class="ch"><b>11</b>Portfolio</div><div class="ch"><b>12</b>Excel and sync</div><div class="ch"><b>13</b>Themes and tips</div>
+  </div>
+  <div class="brand"><i><b></b><b></b><b></b><b></b></i>WBS Builder</div>
+  <img class="logo" id="logo" src="assets/pmo_logo.png" alt="PMO Centre of Excellence">
+ </div>
+</div>
+<script>
+const tl = gsap.timeline({ paused: true }), E = 'expo.out';
+// scene 1
+tl.from('#s1 .k', { opacity: 0, y: 16, duration: .5 }, .1).from('#h1', { opacity: 0, y: 30, duration: .7, ease: E }, .2)
+  .from('#rows .row', { opacity: 0, x: -30, duration: .45, stagger: .14, ease: E }, .6)
+  .to('#rows .row', { opacity: .25, duration: .5 }, 3.2)
+  .from('#tree .root', { opacity: 0, y: -20, duration: .5, ease: E }, 3.3).from('#tree .wire', { scaleX: 0, scaleY: 0, transformOrigin: 'left top', duration: .5, stagger: .05 }, 3.6)
+  .from('#tree .n1', { opacity: 0, y: 20, duration: .5, stagger: .12, ease: E }, 3.8).from('#tree .n2', { opacity: 0, x: -20, duration: .45, stagger: .1, ease: E }, 4.3)
+  .to('#s1 > *', { opacity: 0, duration: .35 }, 6.65);
+// scene 2
+tl.from('#s2 .k, #s2 .h', { opacity: 0, y: 24, duration: .6, stagger: .1, ease: E }, 7.15)
+  .from('#s2 .t', { opacity: 0, y: 50, duration: .6, stagger: .9, ease: E }, 7.7)
+  .from('#s2 .gb', { scaleX: 0, transformOrigin: 'left center', duration: .5, stagger: .08 }, 8.0)
+  .from('#s2 .pill', { opacity: 0, x: -20, duration: .35, stagger: .15 }, 9.9)
+  .to('#s2 > *', { opacity: 0, duration: .35 }, 13.75);
+// scene 3
+tl.from('#s3 .k, #s3 .h', { opacity: 0, y: 24, duration: .6, stagger: .1, ease: E }, 14.25)
+  .from('#chs .ch', { opacity: 0, y: 16, duration: .4, stagger: .07, ease: E }, 14.8)
+  .from('#s3 .brand, #logo', { opacity: 0, duration: .6 }, 16)
+  .to('#s3 > *', { opacity: 0, duration: .4 }, 20.25);
+window.__timelines["main"] = tl; tl.seek(0);
+</script></body></html>
