@@ -1,0 +1,154 @@
+<title>WBS Builder Training</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: a viewing room. Player first, chapter playlist beside it (below on phones), notes under the player. Same drawing-office palette as the tool. */
+:root{
+  --bg:#ECF0EF; --panel:#FFFFFF; --ink:#0D1821; --muted:#46535E; --line:#BCC8C5; --line2:#D9E1DF;
+  --accent:#08776C; --accent-ink:#FFFFFF; --sel:#CDEDE7; --stage:#0B1218; --r:#D42A1E;
+  --l2:#1D5FD6; --l3:#8B3CC9; --l4:#D9620F;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --f-ar:"IBM Plex Sans Arabic","IBM Plex Sans",Tahoma,sans-serif;
+  --shadow:0 1px 2px rgba(13,24,33,.08),0 8px 24px rgba(13,24,33,.10);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#090E13; --panel:#121A22; --ink:#EEF4F2; --muted:#A8B6BD; --line:#344550; --line2:#1F2C35;
+  --accent:#36D6C3; --accent-ink:#03201C; --sel:#15403B; --stage:#05080B; --r:#FF6A5C;
+  --l2:#6FA9FF; --l3:#CB94FF; --l4:#FFA057; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#090E13; --panel:#121A22; --ink:#EEF4F2; --muted:#A8B6BD; --line:#344550; --line2:#1F2C35;
+  --accent:#36D6C3; --accent-ink:#03201C; --sel:#15403B; --stage:#05080B; --r:#FF6A5C;
+  --l2:#6FA9FF; --l3:#CB94FF; --l4:#FFA057; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-ui)}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{border-bottom:1px solid var(--line);background:var(--panel)}
+header .wrap{display:flex;align-items:center;gap:14px;padding-block:12px;flex-wrap:wrap}
+.mark{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.mark i{display:grid;grid-template-columns:repeat(2,8px);gap:3px}
+.mark i b{width:8px;height:8px;border-radius:2px;background:var(--accent)}
+.mark i b:nth-child(1),.mark i b:nth-child(4){opacity:.55}
+.crumb{color:var(--muted);font-size:14px}
+.sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:7px 12px;font:500 13.5px var(--f-ui);color:var(--ink);text-decoration:none;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn:focus-visible,.ch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main .wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;padding-block:22px 48px;align-items:start}
+.stage{background:var(--stage);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);aspect-ratio:16/9;max-width:100%;position:relative}
+.stage video{width:100%;height:100%;display:block;background:var(--stage)}
+.stage .wait{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#EEF4F2;padding:24px}
+.stage .wait b{display:block;font-size:20px;margin-bottom:6px}
+.stage .wait span{opacity:.75;font-size:14px}
+video::cue{font-family:var(--f-ui);font-size:105%;background:rgba(11,18,24,.78)}
+video.ar::cue{font-family:var(--f-ar)}
+.now{display:flex;flex-direction:column;gap:6px;margin-top:16px;min-width:0}
+.eyebrow{font:600 12px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.now h1{margin:0;font-size:clamp(22px,2.6vw,30px);line-height:1.15;text-wrap:balance}
+.now p{margin:0;color:var(--muted);max-width:68ch}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:transparent;padding:6px 12px;font:500 13px var(--f-ui);color:var(--ink);cursor:pointer;border-right:1px solid var(--line2)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:600}
+.seg button.arb{font-family:var(--f-ar)}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
+aside h2{margin:0;padding:14px 16px 10px;font-size:14px;display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line2)}
+aside h2 small{font-weight:400;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
+.list{list-style:none;margin:0;padding:6px;display:flex;flex-direction:column;gap:2px;max-height:min(70vh,640px);overflow:auto}
+.ch{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:baseline;padding:9px 10px;border-radius:8px;color:var(--ink);text-decoration:none;cursor:pointer}
+.ch:hover{background:color-mix(in srgb,var(--sel) 55%,transparent)}
+.ch[aria-current="true"]{background:var(--sel)}
+.ch code{font:600 12px var(--f-mono);color:var(--accent)}
+.ch b{font-weight:500;font-size:14px;line-height:1.3}
+.ch small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.ch time{font:500 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.ch .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-left:6px;vertical-align:2px;opacity:0}
+.ch.seen .dot{opacity:.9}
+.tips{margin-top:22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tip{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel);font-size:13.5px;color:var(--muted)}
+.tip b{display:block;color:var(--ink);margin-bottom:2px}
+kbd{font:500 11.5px var(--f-mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--bg);color:var(--ink)}
+@media (max-width:900px){main .wrap{grid-template-columns:1fr}.list{max-height:none}.tips{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<header><div class="wrap">
+  <div class="mark"><i><b></b><b></b><b></b><b></b></i>WBS Builder</div><span class="crumb">/ Training</span>
+  <span class="sp"></span>
+  <a class="btn primary" id="toTool" href="__TOOL_URL__" target="_blank" rel="noopener">Open WBS Builder</a>
+</div></header>
+
+<main><div class="wrap">
+  <section style="min-width:0">
+    <div class="stage" id="stage">
+      <video id="vid" controls playsinline preload="metadata" hidden></video>
+      <div class="wait" id="wait"><div><b>The video is being prepared</b><span>Chapters appear here as soon as they are uploaded.</span></div></div>
+    </div>
+    <div class="now">
+      <div class="eyebrow" id="nowNum">Chapter</div>
+      <h1 id="nowTitle">WBS Builder: complete training</h1>
+      <p id="nowSub">Every feature of WBS Builder, step by step, recorded in the real tool.</p>
+    </div>
+    <div class="bar">
+      <span class="lbl">Subtitles</span>
+      <div class="seg" id="subs"><button data-s="en" aria-pressed="true">English</button><button data-s="ar" class="arb" aria-pressed="false">العربية</button><button data-s="off" aria-pressed="false">Off</button></div>
+      <span class="sp"></span>
+      <button class="btn" id="prev">← Previous</button><button class="btn" id="next">Next chapter →</button>
+    </div>
+    <div class="tips">
+      <div class="tip"><b>Follow along</b>Open WBS Builder in a second tab and try each step on the example project.</div>
+      <div class="tip"><b>Plays straight through</b>Each chapter moves on to the next by itself. Pick any chapter from the list to jump.</div>
+      <div class="tip"><b>Shortcuts</b><kbd>Space</kbd> play or pause · <kbd>←</kbd><kbd>→</kbd> 5 seconds · <kbd>N</kbd> next chapter</div>
+    </div>
+  </section>
+  <aside><h2>Chapters <small id="total"></small></h2><ol class="list" id="list"></ol></aside>
+</div></main>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById('data').textContent);
+  const $ = s => document.querySelector(s); const vid = $('#vid');
+  const ls = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const fmt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+  const seen = new Set((ls.get('wbsTrain.seen') || '').split(',').filter(Boolean));
+  let cur = 0, subs = ls.get('wbsTrain.subs') || 'en';
+  const total = D.chapters.reduce((a, c) => a + (c.dur || 0), 0);
+  $('#total').textContent = `${D.chapters.length} · ${fmt(total)}`;
+  const vttUrl = {}; D.chapters.forEach(c => ['en', 'ar'].forEach(l => { if (c['vtt_' + l]) vttUrl[c.id + l] = URL.createObjectURL(new Blob([c['vtt_' + l]], { type: 'text/vtt' })); }));
+  function list() {
+    $('#list').innerHTML = D.chapters.map((c, i) => `<li><a class="ch${seen.has(c.id) ? ' seen' : ''}" href="#ch${c.num}" data-i="${i}" ${i === cur ? 'aria-current="true"' : ''}><code>${c.num}</code><span><b>${c.title}</b><small>${c.kicker}</small></span><time>${fmt(c.dur)}<span class="dot" title="Watched"></span></time></a></li>`).join('');
+  }
+  function setSubs() {
+    document.querySelectorAll('#subs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === subs));
+    vid.classList.toggle('ar', subs === 'ar');
+    for (const t of vid.textTracks) t.mode = t.language === subs ? 'showing' : 'disabled';
+  }
+  function load(i, play) {
+    cur = Math.max(0, Math.min(D.chapters.length - 1, i)); const c = D.chapters[cur];
+    $('#nowNum').textContent = c.num === '00' ? 'Welcome' : `Chapter ${c.num} of ${D.chapters.length - 1}`;
+    $('#nowTitle').textContent = c.title; $('#nowSub').textContent = c.kicker;
+    $('#prev').disabled = cur === 0; $('#next').disabled = cur === D.chapters.length - 1;
+    list();
+    if (!c.src) { vid.hidden = true; $('#wait').hidden = false; return; }
+    vid.hidden = false; $('#wait').hidden = true;
+    vid.innerHTML = ['en', 'ar'].filter(l => vttUrl[c.id + l]).map(l => `<track kind="subtitles" srclang="${l}" label="${l === 'en' ? 'English' : 'العربية'}" src="${vttUrl[c.id + l]}">`).join('');
+    vid.src = c.src; if (c.poster) vid.poster = c.poster;
+    vid.addEventListener('loadedmetadata', setSubs, { once: true }); setSubs();
+    if (play) vid.play().catch(() => {});
+  }
+  vid.addEventListener('ended', () => { const c = D.chapters[cur]; seen.add(c.id); ls.set('wbsTrain.seen', [...seen].join(',')); if (cur < D.chapters.length - 1) { location.hash = 'ch' + D.chapters[cur + 1].num; } else list(); });
+  $('#list').addEventListener('click', e => { const a = e.target.closest('.ch'); if (!a) return; e.preventDefault(); location.hash = a.getAttribute('href').slice(1); });
+  $('#subs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; subs = b.dataset.s; ls.set('wbsTrain.subs', subs); setSubs(); });
+  $('#prev').onclick = () => { location.hash = 'ch' + D.chapters[Math.max(0, cur - 1)].num; };
+  $('#next').onclick = () => { location.hash = 'ch' + D.chapters[Math.min(D.chapters.length - 1, cur + 1)].num; };
+  document.addEventListener('keydown', e => { if (e.target.closest('input,textarea,select')) return; if (e.key === 'n' || e.key === 'N') $('#next').click(); else if (e.key === ' ' && e.target === document.body) { e.preventDefault(); vid.paused ? vid.play().catch(() => {}) : vid.pause(); } else if (e.key === 'ArrowRight' && e.target === document.body) vid.currentTime += 5; else if (e.key === 'ArrowLeft' && e.target === document.body) vid.currentTime -= 5; });
+  const fromHash = play => { const m = /^#ch(\d\d)$/.exec(location.hash); const i = m ? D.chapters.findIndex(c => c.num === m[1]) : -1; load(i >= 0 ? i : 0, play); };
+  window.addEventListener('hashchange', () => fromHash(true));
+  fromHash(false);
+})();
+</script>
