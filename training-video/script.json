@@ -1,0 +1,228 @@
+{
+ "title": "WBS Builder — Complete Training",
+ "chapters": [
+  {
+   "id": "c00",
+   "num": "",
+   "title": "Welcome",
+   "kicker": "Cold open",
+   "beats": [
+    "Every project starts as a list. WBS Builder turns that list into a plan you can actually manage.",
+    "A clear work breakdown structure. A live schedule. Delay warnings you can trust. And a status report, in one click.",
+    "In this training, you'll learn every feature, step by step, with real examples. Let's get started."
+   ]
+  },
+  {
+   "id": "c01",
+   "num": "01",
+   "title": "What WBS Builder is",
+   "kicker": "The basics",
+   "beats": [
+    "WBS Builder is a single web page. There's nothing to install. Open it in Microsoft Edge or Google Chrome, and the home page welcomes you, with your projects, Excel import, and this training, all one click away.",
+    "It works offline, too. The Excel reader and writer are built into the file, and nothing is sent to a server.",
+    "Your projects save themselves in your browser, about a second after every change. Keep an eye on the save status, next to the project name.",
+    "When you first open the tool, an example project appears: the development of a twenty-four kilovolt ring main unit. We'll use it throughout this training. As soon as you edit it, it's saved as a real project.",
+    "To share projects with colleagues, you'll use Share and sync, which we'll cover later. And if your team opens WBS Builder from its Claude link instead of the file, projects are shared live: everyone with the link sees the same projects, and changes appear within seconds."
+   ]
+  },
+  {
+   "id": "c02",
+   "num": "02",
+   "title": "Screen tour",
+   "kicker": "Finding your way around",
+   "beats": [
+    "Let's take a quick tour. The screen has three bands.",
+    "Along the top is the project bar. Here's the project name: click it to rename the project. Next to it is the save status. On the right are the theme switch, your projects, Share and sync, and the Excel import and export buttons.",
+    "Below that is the tool rail. First, choose a view: Chart, Table, Gantt, Summary, or Portfolio. Show levels limits how deep the breakdown goes, and it works in every view.",
+    "Next come the editing buttons: add a child, add a sibling, outdent, indent, move up, move down, and delete. Then undo and redo, the Baselines menu, and the Links menu for dependencies.",
+    "At the end of the rail, the summary line gives you the headlines: how many items there are, percent done against plan, the forecast finish and its slip, and how many items are delayed or at risk.",
+    "The main area is the canvas, with the side panel on the right. With nothing selected, the panel shows the shortcuts and the health rules. Select an item, and it becomes the editor for that item."
+   ]
+  },
+  {
+   "id": "c03",
+   "num": "03",
+   "title": "Projects",
+   "kicker": "Create, open, duplicate, delete",
+   "beats": [
+    "Every project lives in the Projects panel. There's no save button: everything saves by itself.",
+    "To start a new project, type a name and click Create. You get an empty project, ready for its first level one items.",
+    "You can rename a project at any time by clicking its name in the top bar.",
+    "Each project card shows how many items it has, and when it was last updated. Click Open to switch to it. The tool always reopens the last project you used.",
+    "Duplicate copies a project, including its summary text. It's perfect for templates, or for trying out a what-if plan without touching the real one.",
+    "Delete is protected. The first click turns the button red and asks you to click again. Only the second click removes the project. There's no undo for this, so keep an exported workbook as a backup."
+   ]
+  },
+  {
+   "id": "c04",
+   "num": "04",
+   "title": "Importing from Excel",
+   "kicker": "From a list to a project",
+   "beats": [
+    "Most projects start life in Excel. Let's bring in a real list: the task list for a substation upgrade, with a phase column, owners and dates.",
+    "Click Import Excel, then drop the file onto the box, or click it to browse. Excel workbooks and CSV files both work.",
+    "The tool reads your column headings and matches them for you. Check that Item name points at the right column. Owner, status, dates, progress, notes and predecessors are matched by heading too. Set any that were missed.",
+    "If your sheet has a title block above the headings, change the header row here.",
+    "Next, choose how many levels the WBS should have. The best fit is marked Suggested. Here, it suggests two levels.",
+    "With two or three levels, choose the column that creates the groups. Each phase becomes a level one item, with its tasks underneath. Merged cells work as they are: a blank cell simply takes the value above it.",
+    "The preview shows the tree exactly as it will be built, before anything is created.",
+    "Choose New project, or add the rows to the project that's open. Then click Import.",
+    "And there it is: a structured, dated project, saved automatically and named after the file. If your file has only one set of dates, they become the plan."
+   ]
+  },
+  {
+   "id": "c05",
+   "num": "05",
+   "title": "Building and editing the WBS",
+   "kicker": "Chart, Table and side panel",
+   "beats": [
+    "You can build the WBS in three ways: visually in the Chart, row by row in the Table, or field by field in the side panel. All three edit the same data, so use whichever suits the moment.",
+    "The Chart is the classic WBS picture. The project sits at the top, the level one items run across, and deeper levels stack underneath. Each level has its own colour.",
+    "Every card shows its code, owner, dates, finish variance and progress. The dot shows its health. And the codes renumber themselves whenever you move things.",
+    "Select a card and press Tab to add a child. Type its name, and you're done.",
+    "With an item selected, press Enter to add a sibling next to it. F2 renames the selected item, and Delete removes it.",
+    "The plus on a card adds a child, and the minus collapses a branch. A collapsed card shows how many items it's hiding.",
+    "To move an item, drag its card onto another card. It becomes that card's last child, and every code updates.",
+    "From the keyboard, Alt, Shift and the arrow keys indent or outdent. Alt with up or down moves an item within its level. The buttons in the tool rail do the same.",
+    "Got a big tree? Use Zoom, or Show levels, to see more at once.",
+    "The Table is a spreadsheet-style grid. Type straight into any cell. Press Enter in a name, and the next item is added right below it.",
+    "Parent rows show rolled-up values in italics. You edit the work packages underneath, and the parents follow.",
+    "The side panel edits the selected item in full: name, owner, status, all three sets of dates, progress, predecessors and notes.",
+    "Need several sub-items at once? Type or paste a list, one per line. Indent with two spaces for a deeper level. Leave Link them in sequence ticked, and each one waits for the one before.",
+    "And remember: everything can be undone with Control Z, and redone with Control Y."
+   ]
+  },
+  {
+   "id": "c06",
+   "num": "06",
+   "title": "Dates, status and health",
+   "kicker": "How the tool judges progress",
+   "beats": [
+    "Every work package carries three pairs of dates, and the tool compares them to decide whether it's on track.",
+    "Planned dates are the baseline: what you committed to. They're filled in automatically the first time you enter dates, and they only change when you save a new baseline.",
+    "Forecast dates are your current best estimate. Type them in, or drag bars in the Gantt. Actual dates record what really happened.",
+    "Watch what happens when a forecast slips. Datasheets and pricing is on track. Push its forecast finish back by a week, and it turns amber: at risk, seven days late.",
+    "Push it past the ten-day threshold, and it turns red: delayed.",
+    "Status is automatic unless you set it. An actual finish means Completed. An actual start, or any progress, means In progress. Otherwise, it's Not started. You can also set On hold or Cancelled by hand. Cancelled items drop out of all totals.",
+    "Here, the busbar design has just finished. Enter the actual finish date, and it's marked complete at a hundred percent.",
+    "Health is worked out for every item, in this order. Grey means complete. Red means delayed: overdue, or at least ten days later than plan. Amber means at risk: a smaller slip, a late start, on hold, or progress twenty-five points behind plan. Otherwise, it's green: on track.",
+    "You never have to guess why. The side panel explains every flag in plain words.",
+    "Parent items roll up from their children: the earliest start, the latest finish, and progress weighted by duration.",
+    "Give an item the same start and finish date, and it becomes a milestone, shown as a diamond in the Gantt.",
+    "Everything is calculated as of today, unless you set a different status date in the Summary view, to report as of last Thursday, for example. The delay threshold can be changed there too, for each project."
+   ]
+  },
+  {
+   "id": "c07",
+   "num": "07",
+   "title": "Baselines",
+   "kicker": "Freeze the plan, compare any time",
+   "beats": [
+    "A baseline is a frozen copy of the plan. WBS Builder keeps every baseline you save, measures against the latest one by default, and lets you compare against any other.",
+    "Re-baseline when a change is formally approved, such as a scope change, or a recovery plan signed off by the committee.",
+    "Open Baselines, and choose Save a new baseline from the current forecast. Keep the suggested name, or change it, and write the reason. It appears in the Summary and in Excel.",
+    "Click Save baseline. Today's forecast becomes the new plan, and the plan you had before is kept as the Original baseline.",
+    "To compare against an older plan, just pick it from the menu. An amber chip appears in the rail so nobody misreads the numbers, and every variance recalculates.",
+    "While you compare, planned dates are read-only, and items added later show as not in this baseline. Click the cross on the chip to go back to the latest plan.",
+    "From the same menu, you can rename a baseline, restore it as the working plan, or delete it with two clicks.",
+    "And in the Summary view, the baseline history lists every baseline, and how far the planned finish moved each time."
+   ]
+  },
+  {
+   "id": "c08",
+   "num": "08",
+   "title": "Dependencies and the critical path",
+   "kicker": "Make the schedule move by itself",
+   "beats": [
+    "A dependency means: this item can't start until that one finishes. Once items are linked, a slip moves everything downstream automatically, and you can see the critical path.",
+    "There are five ways to create links. The quickest one-off is Wait for the item above: the selected item starts when the one above it finishes.",
+    "Chain sub-items in order links every child of the selected parent in sequence. It's ideal for phases that run one after another.",
+    "Auto-link from planned dates scans the whole project and links the hand-offs inside each group. Review the result in the Gantt. Control Z undoes it.",
+    "You can also type codes, in the Table's Depends on column, or pick predecessors in the side panel. Three point one, then four point two plus five, means: after three point one, and five days after four point two.",
+    "Or drag in the Gantt: hover over a bar, grab the dot at its end, and drop it on another row. That row now waits for the bar you started from.",
+    "Now watch the knock-on effect. If the type tests slip by a week, the certificate moves with them, automatically.",
+    "Links that would create a loop are refused. Work that has already started is never moved, only what comes after it. And a link to a parent means: after all of its sub-items.",
+    "If you want links for the picture only, untick Move linked items automatically, in the Links menu. The same menu removes the links from one item, or clears them all, with two clicks.",
+    "The critical path is the chain of linked work that sets the finish date. Any delay on it delays the project. In the Gantt, critical bars get a thick red outline, joined by red links. Tick Critical only to hide everything else.",
+    "In the Chart, critical cards are outlined in red, with a C P tag."
+   ]
+  },
+  {
+   "id": "c09",
+   "num": "09",
+   "title": "The Gantt view",
+   "kicker": "Your schedule against time",
+   "beats": [
+    "The Gantt shows your schedule against time. Switch the scale between day, week, month and quarter. Quarter fits a whole project on one screen.",
+    "Each forecast bar is coloured by level, and the solid part shows percent complete. The thin grey bar underneath is the baseline, and the dark line above it is the actual.",
+    "Parents appear as summary bars, spanning their sub-items. Milestones are diamonds. The dashed red line marks today, or your status date. Fridays and Saturdays are shaded as the weekend.",
+    "Drag the middle of a bar to move it, or either end to change its length. While you drag, a tooltip shows the new dates, the duration, and the slip against plan. Release, and linked items follow.",
+    "Red or amber outlines flag delayed or at-risk work. You can switch the baseline bars and the critical path highlight on or off.",
+    "An item with no dates says No dates. Click its row on the timeline to give it a one-week bar, starting there.",
+    "And the legend at the bottom explains every symbol."
+   ]
+  },
+  {
+   "id": "c10",
+   "num": "10",
+   "title": "The Project Summary",
+   "kicker": "A status report in one click",
+   "beats": [
+    "The Summary view turns your WBS into a one-page status report for the open project.",
+    "At the top: the overall status and its reason, progress against plan, the forecast finish and its slip, and a count of work packages by health.",
+    "Click Write from WBS data, and the summary paragraph is drafted from the numbers. Edit it freely: it's saved with the project.",
+    "Further down, Status by WBS element shows the health, dates, variance and done-versus-plan for each element. Use Show levels to go deeper.",
+    "Then come the critical path, the delayed and at-risk items, what's coming up in the next thirty days, the milestones and the baseline history.",
+    "Four commentary boxes capture achievements, next steps, risks and issues, and decisions needed. Fill from WBS drafts the first three. Decisions are yours to write, and they all feed the portfolio reports.",
+    "When it's ready, use Copy as text for email or Teams, or Download report for a formatted page that opens in Word and prints cleanly to PDF."
+   ]
+  },
+  {
+   "id": "c11",
+   "num": "11",
+   "title": "Portfolio summaries",
+   "kicker": "Many projects, one report",
+   "beats": [
+    "The Portfolio view combines any set of projects into one report, written for one of two audiences: executives, or the project team.",
+    "Tick the projects to include. Your selection is remembered, and Refresh pulls in the latest saves.",
+    "The executive version leads with portfolio health and the number of decisions needed. Then come the decisions and key risks, each tagged with its project. Where a project has none written, the tool suggests them from its critical path, and labels them as suggestions.",
+    "The roadmap shows one row per project: grey for the plan, and a coloured bar for the forecast, with the slip at the end. The trend shows how each project's slip has moved over recent saves.",
+    "The ranking table puts the most urgent projects first. Click a project's name to open its summary. Milestones in the next sixty days close the page.",
+    "Switch the audience to Project team for a working view: overdue items, what's due or starting in the look-ahead window, and potential delays, each explained in plain words.",
+    "Filter by owner, choose a look-ahead of fourteen, thirty or sixty days, and check the workload by owner, so overloads stand out before the meeting.",
+    "Both versions copy as text, or download as a report."
+   ]
+  },
+  {
+   "id": "c12",
+   "num": "12",
+   "title": "Excel round-trip and Share & sync",
+   "kicker": "Work in Excel, share with your team",
+   "beats": [
+    "Export Excel saves the open project as a workbook that you can edit, and bring back.",
+    "The workbook has a WBS sheet with one row per item, plus summaries, projects, baselines, and a Read me with the rules.",
+    "In Excel, edit names, owners, dates, progress and predecessors. To add an item, insert a row under its parent, set its level, and leave the item ID empty. Keep the ID columns, and ignore any column that starts with calc: those are recalculated.",
+    "Back in WBS Builder, import the edited workbook. It's recognised automatically. Instead of the mapping screen, you see exactly what changed, item by item, before you click Apply changes. One Control Z undoes it.",
+    "To share with your team, open Share and sync, and create a connected workbook in a OneDrive or SharePoint-synced folder. From then on, it stays in sync, both ways, while the tool is open.",
+    "The chip next to the save status shows when Excel last synced. Edit the workbook, save it, and the changes arrive here within seconds.",
+    "If it says Close the workbook in Excel to sync, Excel has locked the file. Close it, and the tool catches up. And if both sides changed, a yellow bar asks which version to keep.",
+    "Keep a shared copy up to date rewrites a copy of WBS Builder itself, with every project inside, on every save. Anyone who opens it from SharePoint gets the latest data, never an empty tool.",
+    "You can also export all projects to one workbook, or download a copy of the tool with all projects inside. After a browser restart, a Reconnect sync button appears: one click restores the link."
+   ]
+  },
+  {
+   "id": "c13",
+   "num": "13",
+   "title": "Themes, shortcuts and troubleshooting",
+   "kicker": "Finishing touches",
+   "beats": [
+    "The theme button cycles between Auto, Light and Night. Auto follows your computer. Downloaded reports always use the light theme, so they print cleanly.",
+    "Colours mean the same thing everywhere. Red is delayed or critical. Amber is at risk. Green is on track. And grey is complete, or the baseline.",
+    "Here are the shortcuts worth learning. Tab adds a child. Enter adds a sibling. F2 renames, and Delete removes. The arrow keys select, Alt moves, Alt and Shift indent, and Control Z undoes.",
+    "A few quick answers. If you see no projects, open the file in the same browser you used before, or open the shared copy. If dates moved by themselves, a predecessor slipped. If planned dates are greyed out, you're comparing against an older baseline. And if everything shows as delayed, check the status date and the threshold.",
+    "One last tip: your projects live in your browser. Keep Share and sync set up, or export to Excel regularly, as a backup.",
+    "That's everything! You can come back to this training any time from the home page. Now go plan, track and report with WBS Builder."
+   ]
+  }
+ ]
+}
