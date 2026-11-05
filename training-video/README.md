@@ -23,7 +23,7 @@ videos are not stored here; they are too large for git.
 | Music | `engine/music.py` | MusicGen small, run locally (HyperFrames' free offline route). |
 | Edit | `engine/assemble.py` | Narration, the sound effects bundled with HyperFrames (Pixabay licence), music that dips under the voice, burned captions (libass, Arabic right to left), chapter metadata, per-chapter clips. `assemble.py both` builds the masters; `assemble.py portal` builds the training-page clips and `site/clips.json`. |
 | Checks | `engine/review.py`, `engine/zoomrev.py`, `engine/landtest.js` | Contact sheets of each beat and of every zoom, and landing page screenshots. |
-| Training page | `site/training.tpl.html`, `site/build_training.py` | The standalone player page (no link to the tool): chapters, English/Arabic WebVTT tracks, asset URLs. |
+| Training page | `site/training.tpl.html`, `site/build_training.py` | The standalone player page (no link to the tool): chapters, English/Arabic WebVTT tracks. The clips are published as the page's own files (`v/00.mp4` to `v/13.mp4`, `v/poster.jpg`), at most 64 MB per publish. |
 
 ## Rebuild after a change to the tool
 

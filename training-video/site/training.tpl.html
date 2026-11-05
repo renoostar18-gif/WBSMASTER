@@ -92,6 +92,7 @@ kbd{font:500 11.5px var(--f-mono);border:1px solid var(--line);border-bottom-wid
     <div class="stage" id="stage">
       <video id="vid" controls playsinline preload="metadata" hidden></video>
       <div class="wait" id="wait"><div><b>The video is being prepared</b><span>Chapters appear here as soon as they are uploaded.</span></div></div>
+      <div class="wait" id="vErr" hidden><div><b>This chapter didn't load</b><span>Check your connection, then try again.</span><button class="btn" id="retry" type="button" style="margin-top:14px">Try again</button></div></div>
     </div>
     <div class="now">
       <div class="eyebrow" id="nowNum">Chapter</div>
@@ -140,12 +141,14 @@ kbd{font:500 11.5px var(--f-mono);border:1px solid var(--line);border-bottom-wid
     $('#prev').disabled = cur === 0; $('#next').disabled = cur === D.chapters.length - 1;
     list();
     if (!c.src) { vid.hidden = true; $('#wait').hidden = false; return; }
-    vid.hidden = false; $('#wait').hidden = true;
+    vid.hidden = false; $('#wait').hidden = true; $('#vErr').hidden = true;
     vid.innerHTML = ['en', 'ar'].filter(l => vttUrl[c.id + l]).map(l => `<track kind="subtitles" srclang="${l}" label="${l === 'en' ? 'English' : 'العربية'}" src="${vttUrl[c.id + l]}">`).join('');
     vid.src = c.src; if (c.poster) vid.poster = c.poster;
     vid.addEventListener('loadedmetadata', setSubs, { once: true }); setSubs();
     if (play) vid.play().catch(() => {});
   }
+  vid.addEventListener('error', () => { if (vid.src) $('#vErr').hidden = false; });
+  $('#retry').onclick = () => load(cur, true);
   vid.addEventListener('ended', () => { const c = D.chapters[cur]; seen.add(c.id); ls.set('wbsTrain.seen', [...seen].join(',')); if (cur < D.chapters.length - 1) { location.hash = 'ch' + D.chapters[cur + 1].num; } else list(); });
   $('#list').addEventListener('click', e => { const a = e.target.closest('.ch'); if (!a) return; e.preventDefault(); location.hash = a.getAttribute('href').slice(1); });
   $('#subs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; subs = b.dataset.s; ls.set('wbsTrain.subs', subs); setSubs(); });

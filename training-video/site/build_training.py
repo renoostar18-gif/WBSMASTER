@@ -1,7 +1,8 @@
 # Fill the training page template: chapters, durations, asset URLs and inline WebVTT captions.
 import json, os, sys
 V = '../video'; S = json.load(open(f'{V}/script.json'))
-assets = json.load(open('assets.json')) if os.path.exists('assets.json') else {}
+# clips are published next to the page as v/NN.mp4 and v/poster.jpg; assets.json can override
+assets = json.load(open('assets.json')) if os.path.exists('assets.json') else {**{c: f'v/{c}.mp4' for c in ['%02d' % i for i in range(14)]}, 'poster': 'v/poster.jpg'}
 clips = json.load(open('clips.json')) if os.path.exists('clips.json') else {}
 tool = sys.argv[1] if len(sys.argv) > 1 else '#'
 chs = []
